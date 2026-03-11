@@ -205,3 +205,20 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project-local runtime and generated data
+app.db
+backend_runtime/
+chroma_data/
+uvicorn_*.out
+uvicorn_*.err
+
+# Frontend local env and build output
+frontend/.env.local
+frontend/.next/
+frontend/node_modules/
+frontend/tsconfig.tsbuildinfo
+
+# Keep tracked frontend source visible despite generic Python packaging rules
+!frontend/lib/
+!frontend/lib/**

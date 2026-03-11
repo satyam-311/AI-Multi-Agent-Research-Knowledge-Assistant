@@ -1,0 +1,122 @@
+import base64
+import hashlib
+import hmac
+import json
+import secrets
+import time
+
+from fastapi import Cookie, Header, HTTPException
+from sqlalchemy.orm import Session
+
+from backend import models
+from backend.config import get_settings
+
+
+def _urlsafe_encode(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
+
+
+def _urlsafe_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(value + padding)
+
+
+class AuthService:
+    def __init__(self) -> None:
+        self.settings = get_settings()
+
+    def hash_password(self, password: str, salt: str | None = None) -> str:
+        active_salt = salt or secrets.token_hex(16)
+        digest = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"), active_salt.encode("utf-8"), 100_000
+        ).hex()
+        return f"{active_salt}${digest}"
+
+    def verify_password(self, password: str, password_hash: str) -> bool:
+        try:
+            salt, expected = password_hash.split("$", 1)
+        except ValueError:
+            return False
+        actual = self.hash_password(password, salt).split("$", 1)[1]
+        return hmac.compare_digest(actual, expected)
+
+    def create_token(self, user: models.User) -> str:
+        payload = {
+            "user_id": user.id,
+            "email": user.email,
+            "exp": int(time.time()) + (7 * 24 * 60 * 60),
+        }
+        payload_b64 = _urlsafe_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+        signature = hmac.new(
+            self.settings.auth_secret.encode("utf-8"),
+            payload_b64.encode("utf-8"),
+            hashlib.sha256,
+        ).digest()
+        return f"{payload_b64}.{_urlsafe_encode(signature)}"
+
+    def verify_token(self, token: str) -> dict:
+        try:
+            payload_b64, signature_b64 = token.split(".", 1)
+        except ValueError as exc:
+            raise HTTPException(status_code=401, detail="Invalid authentication token.") from exc
+
+        expected_signature = hmac.new(
+            self.settings.auth_secret.encode("utf-8"),
+            payload_b64.encode("utf-8"),
+            hashlib.sha256,
+        ).digest()
+        if not hmac.compare_digest(_urlsafe_encode(expected_signature), signature_b64):
+            raise HTTPException(status_code=401, detail="Invalid authentication token.")
+
+        payload = json.loads(_urlsafe_decode(payload_b64).decode("utf-8"))
+        if int(payload.get("exp", 0)) < int(time.time()):
+            raise HTTPException(status_code=401, detail="Authentication token expired.")
+        return payload
+
+    def register_user(self, db: Session, name: str, email: str, password: str) -> models.User:
+        normalized_email = email.strip().lower()
+        existing = db.query(models.User).filter(models.User.email == normalized_email).first()
+        if existing is not None:
+            raise HTTPException(status_code=409, detail="An account with this email already exists.")
+
+        user = models.User(
+            name=name.strip(),
+            email=normalized_email,
+            password_hash=self.hash_password(password),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    def login_user(self, db: Session, email: str, password: str) -> models.User:
+        normalized_email = email.strip().lower()
+        user = db.query(models.User).filter(models.User.email == normalized_email).first()
+        if user is None or not self.verify_password(password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password.")
+        return user
+
+    def extract_token(self, authorization: str | None, access_token: str | None) -> str:
+        if access_token:
+            return access_token
+        if authorization and authorization.startswith("Bearer "):
+            return authorization.split(" ", 1)[1].strip()
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    def get_current_user(
+        self, db: Session, authorization: str | None, access_token: str | None
+    ) -> models.User:
+        token = self.extract_token(authorization, access_token)
+        payload = self.verify_token(token)
+        user = db.query(models.User).filter(models.User.id == int(payload["user_id"])).first()
+        if user is None:
+            raise HTTPException(status_code=401, detail="User session is no longer valid.")
+        return user
+
+
+def get_bearer_token(authorization: str | None = Header(default=None)) -> str | None:
+    return authorization
+
+
+def get_auth_cookie(access_token: str | None = Cookie(default=None)) -> str | None:
+    return access_token
