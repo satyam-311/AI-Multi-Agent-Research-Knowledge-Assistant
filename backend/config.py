@@ -35,6 +35,12 @@ class Settings:
     allowed_origins: str
     ocr_fallback_enabled: bool
     ocr_max_pages: int
+    environment: str
+    firebase_project_id: str
+    firebase_client_email: str
+    firebase_private_key: str
+    firebase_service_account_json: str
+    firebase_service_account_key_path: str
 
 
 def _get_bool(name: str, default: bool) -> bool:
@@ -52,7 +58,7 @@ def _default_chroma_directory() -> str:
 
 
 def _default_sqlite_url() -> str:
-    return "sqlite:///C:/Users/Satyam Mishra/.codex/memories/ai-multi-agent-research-assistant/app.db"
+    return f"sqlite:///{(Path.home() / '.codex' / 'memories' / 'ai-multi-agent-research-assistant' / 'app.db').as_posix()}"
 
 
 def _resolve_database_url() -> str:
@@ -87,4 +93,16 @@ def get_settings() -> Settings:
         allowed_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:3000"),
         ocr_fallback_enabled=_get_bool("OCR_FALLBACK_ENABLED", True),
         ocr_max_pages=max(1, int(os.getenv("OCR_MAX_PAGES", "20"))),
+        environment=os.getenv("ENVIRONMENT", "development").strip().lower(),
+        firebase_project_id=os.getenv(
+            "FIREBASE_PROJECT_ID", os.getenv("NEXT_PUBLIC_FIREBASE_PROJECT_ID", "")
+        ).strip(),
+        firebase_client_email=os.getenv("FIREBASE_CLIENT_EMAIL", "").strip(),
+        firebase_private_key=os.getenv("FIREBASE_PRIVATE_KEY", "")
+        .strip()
+        .replace("\\n", "\n"),
+        firebase_service_account_json=os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip(),
+        firebase_service_account_key_path=os.getenv(
+            "FIREBASE_SERVICE_ACCOUNT_KEY_PATH", ""
+        ).strip(),
     )

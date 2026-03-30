@@ -222,3 +222,4 @@ frontend/tsconfig.tsbuildinfo
 # Keep tracked frontend source visible despite generic Python packaging rules
 !frontend/lib/
 !frontend/lib/**
+backend/firebase-service-account*.json*

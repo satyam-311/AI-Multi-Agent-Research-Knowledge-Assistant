@@ -10,11 +10,12 @@ auth_service = AuthService()
 
 
 def _set_auth_cookie(response: Response, token: str) -> None:
+    secure_cookie = auth_service.settings.environment == "production"
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        secure=False,
+        secure=secure_cookie,
         samesite="lax",
         max_age=7 * 24 * 60 * 60,
         path="/",
@@ -42,6 +43,18 @@ def login(
     db: Session = Depends(get_db),
 ) -> schemas.AuthResponse:
     user = auth_service.login_user(db=db, email=payload.email, password=payload.password)
+    token = auth_service.create_token(user)
+    _set_auth_cookie(response, token)
+    return schemas.AuthResponse(token=token, user=user)
+
+
+@router.post("/google", response_model=schemas.AuthResponse)
+def google_login(
+    payload: schemas.GoogleLoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> schemas.AuthResponse:
+    user = auth_service.login_with_google(db=db, id_token=payload.id_token)
     token = auth_service.create_token(user)
     _set_auth_cookie(response, token)
     return schemas.AuthResponse(token=token, user=user)

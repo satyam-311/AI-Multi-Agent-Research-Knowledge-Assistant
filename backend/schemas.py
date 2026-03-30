@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class HealthResponse(BaseModel):
@@ -57,7 +57,7 @@ class DeleteDocumentResponse(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    name: str = Field(min_length=2, max_length=120, examples=["Satyam Mishra"])
+    name: str = Field(min_length=2, max_length=120, examples=["Jane Doe"])
     email: str = Field(min_length=5, max_length=255, examples=["satyam@example.com"])
     password: str = Field(min_length=8, max_length=128, examples=["strongpassword123"])
 
@@ -65,6 +65,14 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str = Field(min_length=5, max_length=255, examples=["satyam@example.com"])
     password: str = Field(min_length=8, max_length=128, examples=["strongpassword123"])
+
+
+class GoogleLoginRequest(BaseModel):
+    id_token: str = Field(
+        min_length=20,
+        validation_alias=AliasChoices("idToken", "id_token"),
+        serialization_alias="idToken",
+    )
 
 
 class UserOut(BaseModel):

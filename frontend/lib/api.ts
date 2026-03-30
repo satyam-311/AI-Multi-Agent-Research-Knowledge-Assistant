@@ -14,6 +14,8 @@ export type AuthUser = {
   name: string;
   email: string;
   created_at: string;
+  photo_url?: string | null;
+  provider?: string | null;
 };
 
 export type AuthResponse = {
@@ -63,6 +65,8 @@ type StoredAuthSession = {
   token: string;
   user: AuthUser;
 };
+
+export type AuthSession = StoredAuthSession;
 
 export class ApiError extends Error {
   status: number;
@@ -295,6 +299,18 @@ export async function login(params: { email: string; password: string }): Promis
 
 export async function getCurrentUser(): Promise<AuthUser> {
   return requestJson<AuthUser>("/auth/me");
+}
+
+export async function loginWithGoogle(idToken: string): Promise<AuthResponse> {
+  return requestJson<AuthResponse>("/api/auth/google", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      idToken
+    })
+  });
 }
 
 export async function logout(): Promise<void> {
