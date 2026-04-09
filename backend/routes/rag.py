@@ -105,14 +105,19 @@ def ask_question(
     db: Session = Depends(get_db),
 ) -> schemas.AskResponse:
     active_user_id = resolve_user_id(current_user, payload.user_id)
-    answer, sources = rag_service.ask_question(
+    answer, sources, flat_sources = rag_service.ask_question(
         db=db,
         user_id=active_user_id,
         question=payload.question,
         top_k=payload.top_k,
         document_id=payload.document_id,
     )
-    return schemas.AskResponse(user_id=active_user_id, answer=answer, sources=sources)
+    return schemas.AskResponse(
+        user_id=active_user_id,
+        answer=answer,
+        sources=sources,
+        flat_sources=flat_sources,
+    )
 
 
 @router.get("/documents", response_model=list[schemas.DocumentOut])

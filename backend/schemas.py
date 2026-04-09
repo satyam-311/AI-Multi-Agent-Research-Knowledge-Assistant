@@ -23,12 +23,25 @@ class AskRequest(BaseModel):
     document_id: int | None = Field(default=None, ge=1, examples=[13])
 
 
+class SourceItem(BaseModel):
+    title: str
+    snippet: str
+    link: str | None = None
+
+
+class SourceGroups(BaseModel):
+    documents: list[SourceItem] = Field(default_factory=list)
+    research: list[SourceItem] = Field(default_factory=list)
+    web: list[SourceItem] = Field(default_factory=list)
+
+
 class AskResponse(BaseModel):
     user_id: int = Field(examples=[1])
     answer: str = Field(
         examples=["Logistic regression is commonly used for binary classification problems."]
     )
-    sources: list[str] = Field(examples=[["research-paper.pdf"]])
+    sources: SourceGroups
+    flat_sources: list[str] = Field(default_factory=list, examples=[["research-paper.pdf"]])
 
 
 class DocumentOut(BaseModel):
