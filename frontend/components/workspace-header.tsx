@@ -1,6 +1,3 @@
-import { Bell, Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
-
 export function WorkspaceHeader({
   title,
   subtitle,
@@ -11,27 +8,19 @@ export function WorkspaceHeader({
   eyebrow?: string;
 }) {
   return (
-    <header className="glass shadow-panel flex flex-col gap-4 rounded-[2rem] border-zinc-800 bg-zinc-950/70 p-5 md:flex-row md:items-center md:justify-between">
+    <header className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 shadow-sm dark:border-zinc-900 dark:bg-zinc-950">
       <div>
         {eyebrow && (
-          <p className="mb-2 text-xs uppercase tracking-[0.18em] text-cyan-300/80">
+          <p className="mb-1.5 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
             {eyebrow}
           </p>
         )}
-        <h1 className="text-balance text-xl font-semibold md:text-3xl">{title}</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{subtitle}</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="relative w-full md:w-64">
-          <Search
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input className="border-zinc-800 bg-zinc-900 pl-9" placeholder="Search documents or chats" />
-        </div>
-        <button className="grid h-10 w-10 place-items-center rounded-2xl border border-zinc-800 bg-zinc-900/80 transition hover:bg-zinc-900">
-          <Bell size={16} />
-        </button>
+        <h1 className="text-balance text-2xl font-semibold tracking-tight text-zinc-950 dark:text-white">
+          {title}
+        </h1>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+          {subtitle}
+        </p>
       </div>
     </header>
   );

@@ -13,6 +13,7 @@ class DocumentUploadResponse(BaseModel):
     user_id: int = Field(examples=[1])
     filename: str = Field(examples=["research-paper.pdf"])
     chunks_created: int = Field(examples=[8])
+    processing: bool = Field(default=False, examples=[True])
 
 
 class AskRequest(BaseModel):

@@ -15,6 +15,9 @@ export default function LoginPage() {
   const { user, loading, error, signInWithEmail, signInWithGoogle, signUpWithEmail } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const normalizedEmail = email.trim().toLowerCase();
+  const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
+  const canSubmitEmailAuth = normalizedEmail.length > 0 && password.length > 0 && emailLooksValid && !loading;
 
   useEffect(() => {
     if (user) {
@@ -23,11 +26,11 @@ export default function LoginPage() {
   }, [nextPath, router, user]);
 
   const handleEmailSignIn = async () => {
-    await signInWithEmail(email.trim(), password);
+    await signInWithEmail(normalizedEmail, password);
   };
 
   const handleEmailSignUp = async () => {
-    await signUpWithEmail(email.trim(), password);
+    await signUpWithEmail(normalizedEmail, password);
   };
 
   const handleGoogleSignIn = async () => {
@@ -59,10 +62,14 @@ export default function LoginPage() {
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
+              onBlur={() => setEmail(normalizedEmail)}
               placeholder="you@example.com"
               className="h-12 w-full rounded-2xl border border-zinc-800 bg-zinc-900 px-4 text-sm text-white outline-none transition focus:border-cyan-500"
               disabled={loading}
             />
+            {email.length > 0 && !emailLooksValid && (
+              <p className="text-xs text-rose-300">Enter a valid email address.</p>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -89,7 +96,7 @@ export default function LoginPage() {
               type="button"
               className="h-12 rounded-2xl bg-cyan-500 text-zinc-950 hover:bg-cyan-400"
               onClick={() => void handleEmailSignIn()}
-              disabled={loading}
+              disabled={!canSubmitEmailAuth}
             >
               {loading ? <LoaderCircle size={16} className="animate-spin" /> : "Sign In"}
             </Button>
@@ -98,7 +105,7 @@ export default function LoginPage() {
               variant="secondary"
               className="h-12 rounded-2xl border border-zinc-800 bg-zinc-900 text-white hover:bg-zinc-800"
               onClick={() => void handleEmailSignUp()}
-              disabled={loading}
+              disabled={!canSubmitEmailAuth}
             >
               {loading ? <LoaderCircle size={16} className="animate-spin" /> : "Sign Up"}
             </Button>

@@ -1,22 +1,21 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Bot,
+  ArrowUpRight,
   Copy,
   FileStack,
-  Hash,
   LoaderCircle,
   RefreshCcw,
   SendHorizontal,
-  Sparkles,
   User2
 } from "lucide-react";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 import { cleanPreview, dedupeSources, normalizeHistory, uniqueLatestDocuments } from "@/lib/document-display";
 import { askQuestion, listChatHistory, listDocuments, type DocumentRecord } from "@/lib/api";
 
@@ -35,7 +34,89 @@ const initialMessages: ChatMessage[] = [
   }
 ];
 
-export function ChatWorkspace() {
+type SourceEntry = { label: string; href: string | null };
+
+function parseSourceEntry(source: string): SourceEntry {
+  const separator = " | ";
+  const separatorIndex = source.lastIndexOf(separator);
+  if (separatorIndex === -1) {
+    return { label: source, href: null };
+  }
+
+  const label = source.slice(0, separatorIndex).trim();
+  const href = source.slice(separatorIndex + separator.length).trim();
+  if (!href.startsWith("http://") && !href.startsWith("https://")) {
+    return { label: source, href: null };
+  }
+  return { label: label || href, href };
+}
+
+function groupSources(sources: string[]) {
+  const grouped = {
+    pdf: [] as SourceEntry[],
+    arxiv: [] as SourceEntry[],
+    resources: [] as SourceEntry[]
+  };
+
+  for (const source of dedupeSources(sources)) {
+    const entry = parseSourceEntry(source);
+    const labelLower = entry.label.toLowerCase();
+    const hrefLower = entry.href?.toLowerCase() ?? "";
+
+    if (labelLower.endsWith(".pdf")) {
+      grouped.pdf.push(entry);
+    } else if (
+      hrefLower.includes("youtube.com") ||
+      hrefLower.includes("duckduckgo.com") ||
+      hrefLower.includes("scholar.google.com") ||
+      hrefLower.includes("github.com")
+    ) {
+      grouped.resources.push(entry);
+    } else {
+      grouped.arxiv.push(entry);
+    }
+  }
+
+  return grouped;
+}
+
+function SourceBlock({ title, items }: { title: string; items: SourceEntry[] }) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">{title}</p>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item, index) =>
+          item.href ? (
+            <a
+              key={`${title}-${item.label}-${index}`}
+              href={item.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-700 transition hover:border-zinc-300 hover:text-zinc-950 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-zinc-700 dark:hover:text-white"
+            >
+              {item.label}
+              <ArrowUpRight size={12} />
+            </a>
+          ) : (
+            <span
+              key={`${title}-${item.label}-${index}`}
+              className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+            >
+              {item.label}
+            </span>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ChatWorkspace({ showSidebar = true }: { showSidebar?: boolean }) {
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -44,9 +125,18 @@ export function ChatWorkspace() {
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [selectedDocumentId, setSelectedDocumentId] = useState<number | "all">("all");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [lastQuestion, setLastQuestion] = useState("");
   const viewportRef = useRef<HTMLDivElement>(null);
+  const latestDocuments = useMemo(() => documents.slice(0, 5), [documents]);
+
+  useEffect(() => {
+    const prompt = searchParams?.get("prompt");
+    if (!prompt) {
+      return;
+    }
+
+    setInput(prompt);
+  }, [searchParams]);
 
   useEffect(() => {
     viewportRef.current?.scrollTo({
@@ -56,17 +146,16 @@ export function ChatWorkspace() {
   }, [messages, loading]);
 
   useEffect(() => {
-    if (!error && !success) {
+    if (!error) {
       return;
     }
 
     const timeout = window.setTimeout(() => {
       setError(null);
-      setSuccess(null);
     }, 5000);
 
     return () => window.clearTimeout(timeout);
-  }, [error, success]);
+  }, [error]);
 
   useEffect(() => {
     let active = true;
@@ -96,10 +185,8 @@ export function ChatWorkspace() {
             ]);
         setMessages(restoredMessages);
         }
-        setSuccess("Conversation ready.");
       } catch (loadError) {
         if (!active) return;
-        setSuccess(null);
         setError(loadError instanceof Error ? loadError.message : "Could not load chat data.");
         toast({
           variant: "error",
@@ -120,8 +207,7 @@ export function ChatWorkspace() {
     };
   }, []);
 
-  const submit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmitQuestion = async () => {
     const question = input.trim();
     if (!question || loading) return;
 
@@ -136,7 +222,6 @@ export function ChatWorkspace() {
     setInput("");
     setLoading(true);
     setError(null);
-    setSuccess(null);
 
     try {
       const response = await askQuestion({
@@ -150,16 +235,7 @@ export function ChatWorkspace() {
         sources: dedupeSources(response.sources)
       };
       setMessages((prev) => [...prev, aiMessage]);
-      setSuccess("Answer generated successfully.");
-      toast({
-        variant: "success",
-        title: "Answer ready",
-        description: response.sources.length
-          ? `Answered with ${response.sources.length} source reference(s).`
-          : "Answer generated successfully."
-      });
     } catch (submitError) {
-      setSuccess(null);
       setError(submitError instanceof Error ? submitError.message : "Question failed.");
       toast({
         variant: "error",
@@ -196,181 +272,167 @@ export function ChatWorkspace() {
     }
   };
 
-  return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
-      <Card className="shadow-panel overflow-hidden border-zinc-800 bg-zinc-950/85">
-        <CardHeader className="flex flex-col gap-4 border-b border-border/70 pb-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle>Chat With Your Documents</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Ask clear questions and review the supporting references.
-            </p>
-          </div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-100">
-            <Sparkles size={13} />
-            document assistant
-          </span>
-        </CardHeader>
-        <CardContent className="space-y-4 p-0">
-          <div className="flex flex-col gap-3 border-b border-border/70 px-6 py-4 md:flex-row md:items-end md:justify-between">
-            <label className="text-xs text-muted-foreground">
-              Focus document
-              <select
-                className="mt-1 block w-full rounded-2xl border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-foreground md:w-80"
-                value={selectedDocumentId}
-                onChange={(e) =>
-                  setSelectedDocumentId(e.target.value === "all" ? "all" : Number(e.target.value))
-                }
-              >
-                <option value="all">All documents</option>
-                {documents.map((document) => (
-                  <option key={document.id} value={document.id}>
-                    #{document.id} {document.filename}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="space-y-1 text-right">
-              {success && <p className="text-sm text-emerald-600">{success}</p>}
-              {error && <p className="text-sm text-rose-600">{error}</p>}
-              {error && (
-                <button
-                  type="button"
-                  onClick={retryLastQuestion}
-                  className="inline-flex items-center gap-2 text-xs text-cyan-300 transition hover:text-cyan-200"
-                >
-                  <RefreshCcw size={13} />
-                  Retry last question
-                </button>
-              )}
-            </div>
-          </div>
+  const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void handleSubmitQuestion();
+    }
+  };
 
-          <div
-            ref={viewportRef}
-            className="h-[62vh] space-y-4 overflow-auto bg-zinc-950/40 px-4 py-5 md:px-6"
-          >
+  return (
+    <div className={`grid gap-5 ${showSidebar ? "xl:grid-cols-[minmax(0,1fr)_250px]" : ""}`}>
+      <Card className="overflow-hidden border-zinc-200 bg-white shadow-sm dark:border-zinc-900 dark:bg-zinc-950">
+        <CardContent className="flex h-[calc(100vh-5.5rem)] flex-col p-0">
+          <div ref={viewportRef} className="flex-1 space-y-4 overflow-auto px-4 py-4 md:px-5">
             {historyLoading && (
-              <div className="flex max-w-[92%] items-center gap-2 rounded-[1.75rem] bg-card p-4 text-sm shadow-sm">
-                <LoaderCircle size={14} className="animate-spin text-primary" />
+              <div className="flex max-w-3xl items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+                <LoaderCircle size={14} className="animate-spin" />
                 Loading your conversation...
               </div>
             )}
-            {messages.map((msg) => (
-              <article
-                key={msg.id}
-                className={`animate-slide-up max-w-[92%] rounded-[1.75rem] p-4 text-sm ${
-                  msg.role === "user"
-                    ? "ml-auto border border-cyan-500/20 bg-gradient-to-br from-cyan-500 to-sky-500 text-primary-foreground shadow-lg shadow-cyan-950/40"
-                    : "border border-zinc-800 bg-zinc-900 text-card-foreground shadow-sm"
-                }`}
-              >
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="flex items-center gap-2 text-xs opacity-80">
-                    {msg.role === "user" ? <User2 size={13} /> : <Bot size={13} />}
-                    {msg.role === "user" ? "You" : "Assistant"}
-                  </p>
-                  {msg.role === "ai" && (
-                    <button
-                      type="button"
-                      onClick={() => void copyMessage(msg.content)}
-                      className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1 text-[11px] text-zinc-300 transition hover:border-zinc-600 hover:text-white"
-                    >
-                      <Copy size={11} />
-                      Copy
-                    </button>
-                  )}
-                </div>
-                {msg.role === "ai" ? (
-                  <MarkdownMessage content={msg.content} />
-                ) : (
-                  <p className="leading-6">{msg.content}</p>
-                )}
-                {msg.role === "ai" && msg.sources && msg.sources.length > 0 && (
-                  <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
-                    <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-zinc-500">
-                      <FileStack size={12} />
-                      Sources
+            {!historyLoading && messages.length === 1 && (
+              <div className="mx-auto max-w-2xl px-4 py-8 text-center">
+                <p className="text-2xl font-semibold tracking-tight text-zinc-950 dark:text-white">
+                  Ask about your PDFs or research
+                </p>
+              </div>
+            )}
+            {messages.map((msg) => {
+              const groupedSources = groupSources(msg.sources ?? []);
+              return (
+                <article
+                  key={msg.id}
+                  className={`max-w-3xl rounded-2xl border p-4 text-sm ${
+                    msg.role === "user"
+                      ? "ml-auto border-zinc-900 bg-zinc-900 text-white dark:border-zinc-700 dark:bg-zinc-100 dark:text-zinc-950"
+                      : "border-zinc-200 bg-white text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
+                  }`}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] opacity-70">
+                      {msg.role === "user" ? <User2 size={13} /> : <Bot size={13} />}
+                      {msg.role === "user" ? "You" : "Assistant"}
                     </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {dedupeSources(msg.sources).map((source, index) => (
-                        <span
-                          key={`${msg.id}-${source}-${index}`}
-                          className="inline-flex items-center gap-1 rounded-full border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-300"
-                        >
-                          <Hash size={11} />
-                          {source}
-                        </span>
-                      ))}
+                    {msg.role === "ai" && (
+                      <button
+                        type="button"
+                        onClick={() => void copyMessage(msg.content)}
+                        className="inline-flex items-center gap-1 rounded-full border border-zinc-200 px-2.5 py-1 text-[11px] text-zinc-600 transition hover:text-zinc-950 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-white"
+                      >
+                        <Copy size={11} />
+                        Copy
+                      </button>
+                    )}
+                  </div>
+                  {msg.role === "ai" ? (
+                    <MarkdownMessage content={msg.content} />
+                  ) : (
+                    <p className="leading-7">{msg.content}</p>
+                  )}
+                  {msg.role === "ai" && msg.sources && msg.sources.length > 0 && (
+                    <div className="mt-5 space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                      <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-zinc-500">
+                        <FileStack size={12} />
+                        References
+                      </p>
+                      <SourceBlock title="From PDF" items={groupedSources.pdf} />
+                      <SourceBlock title="From arXiv" items={groupedSources.arxiv} />
+                      <SourceBlock title="Related Resources" items={groupedSources.resources} />
                     </div>
-                  </div>
-                )}
-              </article>
-            ))}
+                  )}
+                </article>
+              );
+            })}
             {loading && (
-              <div className="flex max-w-[92%] items-start gap-3 rounded-[1.75rem] border border-zinc-800 bg-zinc-900 p-4 text-sm shadow-sm">
-                <LoaderCircle size={14} className="mt-1 animate-spin text-primary" />
+              <div className="flex max-w-3xl items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+                <LoaderCircle size={14} className="mt-1 animate-spin" />
                 <div className="space-y-2">
-                  <p className="text-zinc-100">Thinking through your question...</p>
-                  <div className="space-y-2">
-                    <div className="h-2 w-40 animate-pulse rounded-full bg-zinc-800" />
-                    <div className="h-2 w-64 animate-pulse rounded-full bg-zinc-800" />
-                    <div className="h-2 w-52 animate-pulse rounded-full bg-zinc-800" />
-                  </div>
+                  <p>Thinking through your question...</p>
                 </div>
               </div>
             )}
           </div>
 
-          <form onSubmit={submit} className="border-t border-border/70 bg-card/70 px-4 py-4 md:px-6">
-            <div className="flex gap-2 rounded-[1.75rem] border border-zinc-800 bg-zinc-950/80 p-2">
-              <Input
-                className="border-0 bg-transparent"
-                placeholder="Ask a question about uploaded PDFs..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={loading}
-              />
-              <Button
-                type="submit"
-                className="gap-2 rounded-2xl px-5"
-                disabled={loading || input.trim().length === 0}
-              >
-                <SendHorizontal size={15} />
-                {loading ? "Thinking..." : "Send"}
-              </Button>
+          <div className="border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-900 dark:bg-zinc-950 md:px-5">
+            <div className="mx-auto max-w-3xl space-y-3">
+              {error && (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300">
+                  <span>{error}</span>
+                  <button
+                    type="button"
+                    onClick={retryLastQuestion}
+                    className="inline-flex items-center gap-2 text-xs font-medium"
+                  >
+                    <RefreshCcw size={13} />
+                    Retry
+                  </button>
+                </div>
+              )}
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
+                <textarea
+                  className="min-h-[52px] max-h-32 w-full resize-none border-0 bg-transparent px-0 py-0 text-[15px] leading-6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none dark:text-white"
+                  placeholder="Ask about your PDFs or latest research..."
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleComposerKeyDown}
+                  disabled={loading}
+                />
+                <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <label className="text-xs text-zinc-500">
+                    Focus document
+                    <select
+                      className="mt-1 block w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white md:w-72"
+                      value={selectedDocumentId}
+                      onChange={(e) =>
+                        setSelectedDocumentId(e.target.value === "all" ? "all" : Number(e.target.value))
+                      }
+                    >
+                      <option value="all">All documents</option>
+                      {documents.map((document) => (
+                        <option key={document.id} value={document.id}>
+                          #{document.id} {document.filename}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Button
+                    type="button"
+                    onClick={() => void handleSubmitQuestion()}
+                    className="h-10 gap-2 rounded-xl px-4"
+                    disabled={loading || input.trim().length === 0}
+                  >
+                    <SendHorizontal size={15} />
+                    {loading ? "Thinking..." : "Ask"}
+                  </Button>
+                </div>
+              </div>
             </div>
-          </form>
+          </div>
         </CardContent>
       </Card>
 
-      <Card className="shadow-panel h-fit border-zinc-800 bg-zinc-950/80">
-        <CardHeader>
-          <CardTitle>Documents</CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Your recent uploads appear here while you chat.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {documents.length === 0 && (
-            <div className="rounded-[1.5rem] border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-muted-foreground">
+      {showSidebar && <Card className="h-fit border-zinc-200 bg-white shadow-sm dark:border-zinc-900 dark:bg-zinc-950">
+        <CardContent className="space-y-3 p-4">
+          <p className="text-sm font-semibold text-zinc-950 dark:text-white">Recent documents</p>
+          {latestDocuments.length === 0 && (
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
               Upload a PDF to start asking questions about it.
             </div>
           )}
-          {documents.slice(0, 5).map((document) => (
+          {latestDocuments.map((document) => (
             <div
               key={document.id}
-              className="rounded-[1.5rem] border border-zinc-800 bg-zinc-900/60 p-4 transition hover:border-zinc-700"
+              className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900"
             >
-              <p className="text-sm font-semibold">{document.filename}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Document #{document.id}</p>
-              <p className="mt-3 line-clamp-4 text-sm text-muted-foreground">
+              <p className="text-sm font-semibold text-zinc-950 dark:text-white">{document.filename}</p>
+              <p className="mt-1 text-xs text-zinc-500">Document #{document.id}</p>
+              <p className="mt-3 line-clamp-4 text-sm text-zinc-600 dark:text-zinc-400">
                 {cleanPreview(document.content_preview, 180)}
               </p>
             </div>
           ))}
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }

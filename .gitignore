@@ -210,6 +210,8 @@ __marimo__/
 app.db
 backend_runtime/
 chroma_data/
+mcp_runtime/
+test_mcp.py
 uvicorn_*.out
 uvicorn_*.err
 

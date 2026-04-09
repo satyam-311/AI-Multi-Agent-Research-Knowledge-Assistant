@@ -64,6 +64,26 @@ class AnswerGenerationAgent:
         if any(token in question_lower for token in ["summary", "summarize", "overview"]):
             return "Provide a short structured summary of the main ideas from the document in 4-5 lines."
 
+        if any(
+            phrase in question_lower
+            for phrase in ["what is", "define", "explain", "what does", "why is", "why does"]
+        ):
+            return (
+                "Answer in 3-5 sentences. Start with a clear definition or full form when relevant, "
+                "then explain its role, purpose, or importance using only the provided context. "
+                "If the context links the concept to a document topic, mention that connection briefly."
+            )
+
+        if any(
+            phrase in question_lower
+            for phrase in ["suggest research", "suggest some research", "other research", "related research"]
+        ):
+            return (
+                "Suggest 3-4 relevant research items from the provided context. "
+                "For each one, give the title and one short line on why it is relevant. "
+                "If the context is weak or mixed, say that briefly instead of inventing details."
+            )
+
         return "Answer directly and include the most relevant supporting details from the document."
 
     def _generate_with_ollama(self, prompt: str) -> str:
@@ -88,7 +108,7 @@ class AnswerGenerationAgent:
                 "model": self.settings.groq_model,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.1,
-                "max_tokens": 220,
+                "max_tokens": 320,
             },
             timeout=60.0,
         )

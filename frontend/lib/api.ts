@@ -28,6 +28,7 @@ export type DocumentUploadResponse = {
   user_id: number;
   filename: string;
   chunks_created: number;
+  processing: boolean;
 };
 
 export type AskResponse = {

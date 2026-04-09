@@ -18,6 +18,10 @@ Base = declarative_base()
 
 
 def initialize_database() -> None:
+    if engine.dialect.name == "postgresql":
+        with engine.begin() as connection:
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+
     Base.metadata.create_all(bind=engine)
     inspector = inspect(engine)
     columns = {column["name"] for column in inspector.get_columns("users")}

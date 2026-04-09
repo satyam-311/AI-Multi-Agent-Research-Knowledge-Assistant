@@ -23,7 +23,6 @@ def _load_env_file() -> None:
 @dataclass(frozen=True)
 class Settings:
     database_url: str
-    chroma_persist_directory: str
     ollama_base_url: str
     ollama_model: str
     llm_provider: str
@@ -41,6 +40,7 @@ class Settings:
     firebase_private_key: str
     firebase_service_account_json: str
     firebase_service_account_key_path: str
+    enable_mcp: bool
 
 
 def _get_bool(name: str, default: bool) -> bool:
@@ -48,13 +48,6 @@ def _get_bool(name: str, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _default_chroma_directory() -> str:
-    local_app_data = os.getenv("LOCALAPPDATA")
-    if local_app_data:
-        return str(Path(local_app_data) / "ai-multi-agent-research-assistant" / "chroma")
-    return str(Path.home() / ".ai-multi-agent-research-assistant" / "chroma")
 
 
 def _default_sqlite_url() -> str:
@@ -73,9 +66,6 @@ def get_settings() -> Settings:
     _load_env_file()
     return Settings(
         database_url=_resolve_database_url(),
-        chroma_persist_directory=os.getenv(
-            "CHROMA_PERSIST_DIRECTORY", _default_chroma_directory()
-        ),
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         ollama_model=os.getenv("OLLAMA_MODEL", "llama3"),
         llm_provider=os.getenv("LLM_PROVIDER", "groq").strip().lower(),
@@ -105,4 +95,5 @@ def get_settings() -> Settings:
         firebase_service_account_key_path=os.getenv(
             "FIREBASE_SERVICE_ACCOUNT_KEY_PATH", ""
         ).strip(),
+        enable_mcp=_get_bool("ENABLE_MCP", False),
     )

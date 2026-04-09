@@ -1,38 +1,33 @@
-import { Layers3, ScanSearch, Sparkle } from "lucide-react";
+import { CheckCircle2, FileUp, LoaderCircle } from "lucide-react";
 import { DocumentUploadView } from "@/components/document-upload-view";
 import { WorkspaceHeader } from "@/components/workspace-header";
-import { Card, CardContent } from "@/components/ui/card";
-
-const steps = [
-  { title: "Extract PDF text", icon: ScanSearch },
-  { title: "Chunk the content", icon: Layers3 },
-  { title: "Generate embeddings", icon: Sparkle }
-];
 
 export default function UploadPage() {
   return (
-    <>
+    <div className="space-y-5">
       <WorkspaceHeader
         eyebrow="Ingestion"
         title="Document Upload"
-        subtitle="Ingest PDFs, monitor upload progress, and prepare indexed context for question answering."
+        subtitle="A simple flow: upload the PDF, let it process, then start chatting."
       />
-      <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-        <DocumentUploadView />
-        <Card>
-          <CardContent className="space-y-4 py-6">
-            <p className="text-sm font-semibold">Pipeline Steps</p>
-            {steps.map((step) => (
-              <div key={step.title} className="flex items-center gap-3 rounded-2xl bg-muted/40 p-3">
-                <span className="grid h-9 w-9 place-items-center rounded-xl bg-card text-primary">
-                  <step.icon size={16} />
-                </span>
-                <p className="text-sm">{step.title}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      <div className="grid gap-3 md:grid-cols-3">
+        {[
+          { label: "Upload", icon: FileUp },
+          { label: "Processing", icon: LoaderCircle },
+          { label: "Ready", icon: CheckCircle2 }
+        ].map((step) => (
+          <div
+            key={step.label}
+            className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-900 dark:bg-zinc-950"
+          >
+            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+              <step.icon size={18} className={step.label === "Processing" ? "animate-spin" : ""} />
+            </div>
+            <p className="font-semibold text-zinc-950 dark:text-white">{step.label}</p>
+          </div>
+        ))}
       </div>
-    </>
+      <DocumentUploadView />
+    </div>
   );
 }

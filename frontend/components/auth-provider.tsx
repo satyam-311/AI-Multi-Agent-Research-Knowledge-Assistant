@@ -42,6 +42,12 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 type FirebaseErrorLike = Error & { code?: string };
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
 function formatAuthError(error: unknown) {
   const authError = error as FirebaseErrorLike;
   const code = authError?.code ?? "";
@@ -201,11 +207,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const handleEmailSignIn = async (email: string, password: string) => {
-    await completeCredentialSignIn(signInWithEmailAndPassword(auth, email, password));
+    const normalizedEmail = normalizeEmail(email);
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+      const error = new Error("Enter a valid email address.");
+      setError(error.message);
+      throw error;
+    }
+    await completeCredentialSignIn(signInWithEmailAndPassword(auth, normalizedEmail, password));
   };
 
   const handleEmailSignUp = async (email: string, password: string) => {
-    await completeCredentialSignIn(createUserWithEmailAndPassword(auth, email, password));
+    const normalizedEmail = normalizeEmail(email);
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+      const error = new Error("Enter a valid email address.");
+      setError(error.message);
+      throw error;
+    }
+    await completeCredentialSignIn(
+      createUserWithEmailAndPassword(auth, normalizedEmail, password)
+    );
   };
 
   const handleLogout = async () => {
