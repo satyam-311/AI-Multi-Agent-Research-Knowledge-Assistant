@@ -1,50 +1,25 @@
 import json
 
-from typing import Annotated
-
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from backend import models, schemas
+from backend.auth.firebase_auth import get_user_id
 from backend.database import SessionLocal, get_db
-from backend.services.auth_service import AuthService, get_auth_cookie, get_bearer_token
 from backend.services.rag_service import RAGService
 
 router = APIRouter()
 rag_service = RAGService()
-auth_service = AuthService()
-
-
-def get_optional_authenticated_user(
-    authorization: str | None = Depends(get_bearer_token),
-    access_token: str | None = Depends(get_auth_cookie),
-    db: Session = Depends(get_db),
-) -> models.User | None:
-    try:
-        return auth_service.get_current_user(
-            db=db, authorization=authorization, access_token=access_token
-        )
-    except Exception:
-        return None
-
-
-def resolve_user_id(current_user: models.User | None, requested_user_id: int | None = None) -> int:
-    if current_user is not None:
-        return current_user.id
-    if requested_user_id is not None and requested_user_id >= 1:
-        return requested_user_id
-    return 1
 
 
 @router.post("/upload_document", response_model=schemas.DocumentUploadResponse)
 async def upload_document(
+    request: Request,
     background_tasks: BackgroundTasks,
-    user_id: int | None = Form(default=None, ge=1, example=1),
     file: UploadFile = File(...),
-    current_user: models.User | None = Depends(get_optional_authenticated_user),
     db: Session = Depends(get_db),
 ) -> schemas.DocumentUploadResponse:
-    active_user_id = resolve_user_id(current_user, user_id)
+    active_user_id = get_user_id(request)
     file_bytes = await file.read()
     filename = file.filename or "uploaded.pdf"
     content_type = file.content_type
@@ -100,11 +75,11 @@ async def process_uploaded_document_in_background(
 
 @router.post("/ask_question", response_model=schemas.AskResponse)
 def ask_question(
+    request: Request,
     payload: schemas.AskRequest,
-    current_user: models.User | None = Depends(get_optional_authenticated_user),
     db: Session = Depends(get_db),
 ) -> schemas.AskResponse:
-    active_user_id = resolve_user_id(current_user, payload.user_id)
+    active_user_id = get_user_id(request)
     answer, sources, flat_sources = rag_service.ask_question(
         db=db,
         user_id=active_user_id,
@@ -122,25 +97,23 @@ def ask_question(
 
 @router.get("/documents", response_model=list[schemas.DocumentOut])
 def list_documents(
-    user_id: int | None = Query(default=None, ge=1),
-    current_user: models.User | None = Depends(get_optional_authenticated_user),
+    request: Request,
     db: Session = Depends(get_db),
 ) -> list[schemas.DocumentOut]:
     query = db.query(models.Document).order_by(models.Document.created_at.desc())
-    active_user_id = resolve_user_id(current_user, user_id)
+    active_user_id = get_user_id(request)
     query = query.filter(models.Document.user_id == active_user_id)
     return query.all()
 
 
 @router.get("/get_chat_history", response_model=list[schemas.ChatHistoryOut])
 def get_chat_history(
-    user_id: int | None = Query(default=None, ge=1),
+    request: Request,
     limit: int = Query(default=50, ge=1, le=500),
-    current_user: models.User | None = Depends(get_optional_authenticated_user),
     db: Session = Depends(get_db),
 ) -> list[schemas.ChatHistoryOut]:
     query = db.query(models.ChatHistory).order_by(models.ChatHistory.created_at.desc())
-    active_user_id = resolve_user_id(current_user, user_id)
+    active_user_id = get_user_id(request)
     query = query.filter(models.ChatHistory.user_id == active_user_id)
 
     rows = query.limit(limit).all()
@@ -166,11 +139,10 @@ def get_chat_history(
 
 @router.delete("/documents/{document_id}", response_model=schemas.DeleteDocumentResponse)
 def delete_document(
+    request: Request,
     document_id: int,
-    user_id: int | None = Query(default=None, ge=1),
-    current_user: models.User | None = Depends(get_optional_authenticated_user),
     db: Session = Depends(get_db),
 ) -> schemas.DeleteDocumentResponse:
-    active_user_id = resolve_user_id(current_user, user_id)
+    active_user_id = get_user_id(request)
     rag_service.delete_document(db=db, user_id=active_user_id, document_id=document_id)
     return schemas.DeleteDocumentResponse(document_id=document_id, deleted=True)

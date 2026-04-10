@@ -5,15 +5,13 @@ import json
 import logging
 import secrets
 import time
-from pathlib import Path
 
 from fastapi import Cookie, Header, HTTPException
-import firebase_admin
 from firebase_admin import auth as firebase_auth
-from firebase_admin import credentials
 from sqlalchemy.orm import Session
 
 from backend import models
+from backend.auth.firebase_auth import get_firebase_app
 from backend.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -41,69 +39,7 @@ def _decode_unverified_jwt_payload(token: str) -> dict[str, object]:
 class AuthService:
     def __init__(self) -> None:
         self.settings = get_settings()
-        self._firebase_app = self._initialize_firebase()
-
-    def _initialize_firebase(self):
-        if firebase_admin._apps:
-            return firebase_admin.get_app()
-
-        service_account_json = self.settings.firebase_service_account_json
-        if service_account_json:
-            try:
-                service_account_info = json.loads(service_account_json)
-                if "private_key" in service_account_info:
-                    service_account_info["private_key"] = service_account_info[
-                        "private_key"
-                    ].replace("\\n", "\n")
-                cert = credentials.Certificate(service_account_info)
-                return firebase_admin.initialize_app(cert)
-            except Exception:
-                logger.exception(
-                    "Failed to initialize Firebase Admin from FIREBASE_SERVICE_ACCOUNT_JSON."
-                )
-                return None
-
-        service_account_key_path = self.settings.firebase_service_account_key_path
-        if service_account_key_path:
-            service_account_path = Path(service_account_key_path).expanduser()
-            if not service_account_path.is_absolute():
-                service_account_path = (Path.cwd() / service_account_path).resolve()
-            if not service_account_path.exists():
-                logger.warning(
-                    "Firebase service account file was not found at %s.", service_account_path
-                )
-                return None
-
-            try:
-                cert = credentials.Certificate(str(service_account_path))
-                return firebase_admin.initialize_app(cert)
-            except Exception:
-                logger.exception(
-                    "Failed to initialize Firebase Admin from service account file."
-                )
-                return None
-
-        if not (
-            self.settings.firebase_project_id
-            and self.settings.firebase_client_email
-            and self.settings.firebase_private_key
-        ):
-            return None
-
-        try:
-            cert = credentials.Certificate(
-                {
-                    "type": "service_account",
-                    "project_id": self.settings.firebase_project_id,
-                    "client_email": self.settings.firebase_client_email,
-                    "private_key": self.settings.firebase_private_key,
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                }
-            )
-            return firebase_admin.initialize_app(cert)
-        except Exception:
-            logger.exception("Failed to initialize Firebase Admin from inline env credentials.")
-            return None
+        self._firebase_app = get_firebase_app()
 
     def hash_password(self, password: str, salt: str | None = None) -> str:
         active_salt = salt or secrets.token_hex(16)
@@ -182,9 +118,7 @@ class AuthService:
                 status_code=503,
                 detail=(
                     "Google sign-in is not configured on the server. "
-                    "Set FIREBASE_SERVICE_ACCOUNT_JSON, FIREBASE_SERVICE_ACCOUNT_KEY_PATH, "
-                    "or the FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and "
-                    "FIREBASE_PRIVATE_KEY env vars."
+                    "Set FIREBASE_SERVICE_ACCOUNT_JSON."
                 ),
             )
 

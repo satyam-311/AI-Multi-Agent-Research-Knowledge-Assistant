@@ -2,22 +2,9 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from dotenv import load_dotenv
 
-
-def _load_env_file() -> None:
-    env_path = Path.cwd() / ".env"
-    if not env_path.exists():
-        return
-
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        os.environ[key] = value
+load_dotenv(Path.cwd() / ".env", override=False)
 
 
 @dataclass(frozen=True)
@@ -39,7 +26,6 @@ class Settings:
     firebase_client_email: str
     firebase_private_key: str
     firebase_service_account_json: str
-    firebase_service_account_key_path: str
     enable_mcp: bool
 
 
@@ -63,7 +49,6 @@ def _resolve_database_url() -> str:
 
 @lru_cache
 def get_settings() -> Settings:
-    _load_env_file()
     return Settings(
         database_url=_resolve_database_url(),
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
@@ -92,8 +77,5 @@ def get_settings() -> Settings:
         .strip()
         .replace("\\n", "\n"),
         firebase_service_account_json=os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip(),
-        firebase_service_account_key_path=os.getenv(
-            "FIREBASE_SERVICE_ACCOUNT_KEY_PATH", ""
-        ).strip(),
         enable_mcp=_get_bool("ENABLE_MCP", False),
     )
