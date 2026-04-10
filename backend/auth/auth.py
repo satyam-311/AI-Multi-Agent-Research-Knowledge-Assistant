@@ -4,7 +4,7 @@ import time
 from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
-from backend.auth.utils import (
+from auth.utils import (
     get_cookie_name,
     get_cookie_secure,
     get_otp_ttl_seconds,

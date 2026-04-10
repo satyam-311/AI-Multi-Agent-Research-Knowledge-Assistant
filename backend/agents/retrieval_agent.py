@@ -1,5 +1,5 @@
-from backend.services.embedding_backend import load_embedding_model
-from backend.services.vector_store import search_similar_chunks
+from services.embedding_backend import load_embedding_model
+from services.vector_store import search_similar_chunks
 
 
 class RetrievalAgent:

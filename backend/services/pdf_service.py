@@ -3,7 +3,7 @@ from io import BytesIO
 from importlib.util import find_spec
 from shutil import which
 
-from backend.config import get_settings
+from config import get_settings
 
 
 class OCRUnavailableError(Exception):

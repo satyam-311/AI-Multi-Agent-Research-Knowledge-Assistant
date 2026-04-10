@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, Request
 
 from sqlalchemy.orm import Session
 
-from backend.database import get_db
-from backend.auth.firebase_auth import get_user_id
-from backend.schemas import AskRequest, AskResponse
-from backend.services.rag_service import RAGService
+from database import get_db
+from auth.firebase_auth import get_user_id
+from schemas import AskRequest, AskResponse
+from services.rag_service import RAGService
 
 router = APIRouter()
 rag_service = RAGService()

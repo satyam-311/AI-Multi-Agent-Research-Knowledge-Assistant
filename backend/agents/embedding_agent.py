@@ -1,6 +1,6 @@
-from backend.config import get_settings
-from backend.services.embedding_backend import load_embedding_model
-from backend.services.vector_store import delete_document_chunks, upsert_document_chunks
+from config import get_settings
+from services.embedding_backend import load_embedding_model
+from services.vector_store import delete_document_chunks, upsert_document_chunks
 
 
 class EmbeddingModelUnavailable(RuntimeError):

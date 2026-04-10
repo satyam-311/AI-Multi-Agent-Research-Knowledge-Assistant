@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
-from backend import schemas
-from backend.database import get_db
-from backend.services.auth_service import AuthService, get_auth_cookie, get_bearer_token
+import schemas
+from database import get_db
+from services.auth_service import AuthService, get_auth_cookie, get_bearer_token
 
 router = APIRouter()
 auth_service = AuthService()

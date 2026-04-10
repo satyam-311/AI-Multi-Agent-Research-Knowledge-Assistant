@@ -5,7 +5,7 @@ import firebase_admin
 from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials
 
-from backend.config import get_settings
+from config import get_settings
 
 
 def _initialize_firebase():

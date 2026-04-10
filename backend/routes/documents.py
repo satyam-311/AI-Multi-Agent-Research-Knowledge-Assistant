@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from sqlalchemy.orm import Session
 
-from backend import schemas
-from backend.auth.firebase_auth import get_user_id
-from backend.database import get_db
-from backend.services.rag_service import RAGService
+import schemas
+from auth.firebase_auth import get_user_id
+from database import get_db
+from services.rag_service import RAGService
 
 router = APIRouter()
 rag_service = RAGService()

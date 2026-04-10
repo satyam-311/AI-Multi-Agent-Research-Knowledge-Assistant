@@ -1,7 +1,7 @@
 import httpx
 import ollama
 
-from backend.config import get_settings
+from config import get_settings
 
 
 class AnswerGenerationAgent:

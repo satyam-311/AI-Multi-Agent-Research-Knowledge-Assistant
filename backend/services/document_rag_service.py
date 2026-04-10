@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
-from backend import models
-from backend.agents.retrieval_agent import RetrievalAgent
+import models
+from agents.retrieval_agent import RetrievalAgent
 
 
 class DocumentRAGService:

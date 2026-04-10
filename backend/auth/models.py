@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.database import Base, engine
+from database import Base, engine
 
 
 class AuthUser(Base):

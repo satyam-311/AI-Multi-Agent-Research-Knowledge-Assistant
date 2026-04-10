@@ -1,8 +1,8 @@
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
-from backend.agents.orchestrator import MultiAgentOrchestrator
-from backend.services.multi_source_assistant_service import MultiSourceAssistantService
+from agents.orchestrator import MultiAgentOrchestrator
+from services.multi_source_assistant_service import MultiSourceAssistantService
 
 
 class RAGService:

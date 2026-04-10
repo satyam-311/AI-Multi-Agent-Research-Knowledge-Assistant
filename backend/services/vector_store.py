@@ -1,7 +1,7 @@
 from sqlalchemy import delete, select
 
-from backend import models
-from backend.database import SessionLocal
+import models
+from database import SessionLocal
 
 
 def upsert_document_chunks(

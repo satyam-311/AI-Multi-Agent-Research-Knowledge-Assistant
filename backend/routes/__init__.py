@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from backend.routes import auth, health, rag
+from routes import auth, health, rag
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])

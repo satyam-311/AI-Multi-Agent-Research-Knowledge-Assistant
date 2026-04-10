@@ -2,9 +2,9 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from backend.auth.jwt_handler import decode_access_token
-from backend.auth.models import AuthUser
-from backend.database import SessionLocal
+from auth.jwt_handler import decode_access_token
+from auth.models import AuthUser
+from database import SessionLocal
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

@@ -8,8 +8,8 @@ except Exception:  # pragma: no cover - fallback for offline environments
 from pypdf.errors import PdfReadError
 from pypdf import PdfReader
 
-from backend.config import get_settings
-from backend.services.pdf_service import OCRUnavailableError, PDFOCRService
+from config import get_settings
+from services.pdf_service import OCRUnavailableError, PDFOCRService
 
 
 class DocumentExtractionError(Exception):

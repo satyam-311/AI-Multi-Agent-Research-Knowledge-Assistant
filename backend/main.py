@@ -4,10 +4,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend import models  # noqa: F401
-from backend.config import get_settings
-from backend.database import initialize_database
-from backend.routes import api_router
+import models  # noqa: F401
+from config import get_settings
+from database import initialize_database
+from routes import api_router
 
 settings = get_settings()
 logger = logging.getLogger(__name__)

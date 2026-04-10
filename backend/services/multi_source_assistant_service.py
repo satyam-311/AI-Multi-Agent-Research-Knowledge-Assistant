@@ -2,11 +2,12 @@ import json
 
 from sqlalchemy.orm import Session
 
-from backend import models, schemas
-from backend.agents.answer_generation_agent import AnswerGenerationAgent
-from backend.services.arxiv_service import ArxivService
-from backend.services.document_rag_service import DocumentRAGService
-from backend.services.web_search_service import WebSearchService
+import models
+import schemas
+from agents.answer_generation_agent import AnswerGenerationAgent
+from services.arxiv_service import ArxivService
+from services.document_rag_service import DocumentRAGService
+from services.web_search_service import WebSearchService
 
 
 class MultiSourceAssistantService:

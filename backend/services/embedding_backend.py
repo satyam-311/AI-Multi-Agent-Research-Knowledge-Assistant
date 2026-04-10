@@ -4,7 +4,7 @@ import re
 from hashlib import blake2b
 from collections.abc import Iterable
 
-from backend.config import get_settings
+from config import get_settings
 
 logger = logging.getLogger(__name__)
 TOKEN_PATTERN = re.compile(r"\w+")

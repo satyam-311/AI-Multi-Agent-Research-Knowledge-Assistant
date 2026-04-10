@@ -9,9 +9,9 @@ import bcrypt
 from fastapi import Header, HTTPException
 from sqlalchemy.orm import Session
 
-from backend.auth.jwt_handler import decode_access_token
-from backend.auth.models import AuthUser
-from backend.database import SessionLocal
+from auth.jwt_handler import decode_access_token
+from auth.models import AuthUser
+from database import SessionLocal
 
 logger = logging.getLogger(__name__)
 

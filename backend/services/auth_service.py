@@ -10,9 +10,9 @@ from fastapi import Cookie, Header, HTTPException
 from firebase_admin import auth as firebase_auth
 from sqlalchemy.orm import Session
 
-from backend import models
-from backend.auth.firebase_auth import get_firebase_app
-from backend.config import get_settings
+import models
+from auth.firebase_auth import get_firebase_app
+from config import get_settings
 
 logger = logging.getLogger(__name__)
 

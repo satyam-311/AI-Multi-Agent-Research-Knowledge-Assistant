@@ -9,11 +9,11 @@ from fastapi import HTTPException, UploadFile
 from starlette.datastructures import Headers
 from sqlalchemy.orm import Session
 
-from backend import models
-from backend.config import get_settings
-from backend.agents.document_processing_agent import DocumentExtractionError
-from backend.agents.embedding_agent import EmbeddingModelUnavailable
-from backend.mcp_client import get_tools
+import models
+from config import get_settings
+from agents.document_processing_agent import DocumentExtractionError
+from agents.embedding_agent import EmbeddingModelUnavailable
+from mcp_client import get_tools
 
 
 class MultiAgentOrchestrator:
@@ -28,7 +28,7 @@ class MultiAgentOrchestrator:
     @property
     def document_agent(self):
         if self._document_agent is None:
-            from backend.agents.document_processing_agent import DocumentProcessingAgent
+            from agents.document_processing_agent import DocumentProcessingAgent
 
             self._document_agent = DocumentProcessingAgent()
         return self._document_agent
@@ -36,7 +36,7 @@ class MultiAgentOrchestrator:
     @property
     def embedding_agent(self):
         if self._embedding_agent is None:
-            from backend.agents.embedding_agent import EmbeddingAgent
+            from agents.embedding_agent import EmbeddingAgent
 
             self._embedding_agent = EmbeddingAgent()
         return self._embedding_agent
@@ -44,7 +44,7 @@ class MultiAgentOrchestrator:
     @property
     def retrieval_agent(self):
         if self._retrieval_agent is None:
-            from backend.agents.retrieval_agent import RetrievalAgent
+            from agents.retrieval_agent import RetrievalAgent
 
             self._retrieval_agent = RetrievalAgent()
         return self._retrieval_agent
@@ -52,7 +52,7 @@ class MultiAgentOrchestrator:
     @property
     def answer_agent(self):
         if self._answer_agent is None:
-            from backend.agents.answer_generation_agent import AnswerGenerationAgent
+            from agents.answer_generation_agent import AnswerGenerationAgent
 
             self._answer_agent = AnswerGenerationAgent()
         return self._answer_agent
