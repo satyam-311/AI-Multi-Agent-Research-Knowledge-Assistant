@@ -59,9 +59,7 @@ def get_settings() -> Settings:
         groq_base_url=os.getenv(
             "GROQ_BASE_URL", "https://api.groq.com/openai/v1/chat/completions"
         ).strip(),
-        embedding_model=os.getenv(
-            "EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
-        ),
+        embedding_model=os.getenv("EMBEDDING_MODEL", "models/text-embedding-004"),
         auth_secret=os.getenv(
             "AUTH_SECRET", "local-dev-secret-change-before-production"
         ),

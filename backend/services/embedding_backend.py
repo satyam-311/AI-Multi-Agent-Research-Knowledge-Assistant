@@ -22,6 +22,7 @@ class GeminiEmbedder:
             embedding = response["embedding"]
             if not isinstance(embedding, list) or not embedding:
                 raise RuntimeError("Gemini returned an empty embedding.")
+            print(len(embedding))
             return embedding
         except Exception as exc:
             raise RuntimeError(f"Embedding failed: {str(exc)}") from exc
