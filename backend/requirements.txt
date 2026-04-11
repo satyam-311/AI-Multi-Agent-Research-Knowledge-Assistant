@@ -6,12 +6,12 @@ psycopg2-binary==2.9.10
 pgvector==0.3.6
 pydantic==2.10.6
 alembic==1.14.1
-sentence-transformers==3.4.1
 pypdf==5.2.0
 httpx==0.28.1
 feedparser==6.0.11
 duckduckgo-search==6.3.7
 python-dotenv==1.0.1
+google-generativeai==0.8.5
 ollama==0.4.7
 pytesseract==0.3.13
 PyMuPDF==1.26.4

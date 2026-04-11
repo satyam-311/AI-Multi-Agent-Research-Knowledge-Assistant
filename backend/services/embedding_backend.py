@@ -1,50 +1,38 @@
-import logging
-import math
-import re
-from hashlib import blake2b
-from collections.abc import Iterable
+import os
 
-from config import get_settings
+import google.generativeai as genai
 
-logger = logging.getLogger(__name__)
-TOKEN_PATTERN = re.compile(r"\w+")
+GEMINI_EMBEDDING_MODEL = "models/text-embedding-004"
+GEMINI_EMBEDDING_DIMENSION = 768
 
 
-class LocalFallbackEmbedder:
-    def __init__(self, dimension: int = 384) -> None:
-        self.dimension = dimension
+class GeminiEmbedder:
+    def __init__(self) -> None:
+        api_key = os.getenv("GEMINI_API_KEY", "").strip()
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY is not configured.")
+        genai.configure(api_key=api_key)
 
-    def encode(self, texts: str | Iterable[str]) -> list[list[float]]:
-        if isinstance(texts, str):
-            items = [texts]
-        else:
-            items = list(texts)
-        return [self._encode_text(text) for text in items]
+    def get_embedding(self, text: str) -> list[float]:
+        try:
+            response = genai.embed_content(
+                model=GEMINI_EMBEDDING_MODEL,
+                content=text,
+            )
+            embedding = response["embedding"]
+            if not isinstance(embedding, list) or not embedding:
+                raise RuntimeError("Gemini returned an empty embedding.")
+            return embedding
+        except Exception as exc:
+            raise RuntimeError(f"Embedding failed: {str(exc)}") from exc
 
-    def _encode_text(self, text: str) -> list[float]:
-        vector = [0.0] * self.dimension
-        for token in TOKEN_PATTERN.findall(text.lower()):
-            token_hash = blake2b(token.encode("utf-8"), digest_size=8).digest()
-            index = int.from_bytes(token_hash, "big") % self.dimension
-            vector[index] += 1.0
+    def encode(self, texts: list[str] | tuple[str, ...]) -> list[list[float]]:
+        return [self.get_embedding(text) for text in texts]
 
-        magnitude = math.sqrt(sum(value * value for value in vector))
-        if magnitude == 0:
-            return vector
-        return [value / magnitude for value in vector]
+
+def get_embedding(text: str) -> list[float]:
+    return GeminiEmbedder().get_embedding(text)
 
 
 def load_embedding_model():
-    settings = get_settings()
-    try:
-        from sentence_transformers import SentenceTransformer
-
-        return SentenceTransformer(settings.embedding_model, local_files_only=True)
-    except Exception as exc:
-        logger.warning(
-            "Embedding model '%s' unavailable locally; using hash-based fallback embeddings. Root error: %s: %s",
-            settings.embedding_model,
-            exc.__class__.__name__,
-            exc,
-        )
-        return LocalFallbackEmbedder()
+    return GeminiEmbedder()

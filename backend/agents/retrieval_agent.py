@@ -9,10 +9,7 @@ class RetrievalAgent:
     def retrieve_relevant_chunks(
         self, query: str, user_id: int, top_k: int = 4, document_id: int | None = None
     ) -> list[dict]:
-        query_embeddings = self.model.encode([query])
-        if hasattr(query_embeddings, "tolist"):
-            query_embeddings = query_embeddings.tolist()
-        query_embedding = query_embeddings[0]
+        query_embedding = self.model.get_embedding(query)
         return search_similar_chunks(
             user_id=user_id,
             query_embedding=query_embedding,

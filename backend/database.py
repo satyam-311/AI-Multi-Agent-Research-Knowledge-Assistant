@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, text
@@ -6,6 +7,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 if settings.database_url.startswith("sqlite:///"):
     sqlite_target = settings.database_url.replace("sqlite:///", "", 1)
@@ -36,6 +38,14 @@ def initialize_database() -> None:
             connection.execute(
                 text("ALTER TABLE documents ADD COLUMN content_text TEXT NOT NULL DEFAULT ''")
             )
+    if engine.dialect.name == "postgresql" and inspector.has_table("document_chunks"):
+        try:
+            with engine.begin() as connection:
+                connection.execute(
+                    text("ALTER TABLE document_chunks ALTER COLUMN embedding TYPE vector(768)")
+                )
+        except Exception as exc:
+            logger.warning("Could not update document_chunks.embedding to vector(768): %s", exc)
 
 
 def get_db():

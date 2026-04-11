@@ -15,8 +15,7 @@ class EmbeddingAgent:
         except Exception as exc:  # network/proxy/offline/corrupt cache, etc.
             raise EmbeddingModelUnavailable(
                 "Embedding model could not be loaded. "
-                "Check the local embedding setup and pgvector/Postgres configuration, then restart the server. "
-                f"(EMBEDDING_MODEL={settings.embedding_model}). "
+                "Check GEMINI_API_KEY and pgvector/Postgres configuration, then restart the server. "
                 f"Root error: {exc.__class__.__name__}: {exc}"
             ) from exc
 
@@ -29,9 +28,10 @@ class EmbeddingAgent:
         # Re-indexing the same document should replace previous chunks cleanly.
         self.delete_document_chunks(user_id=user_id, document_id=document_id)
 
-        embeddings = self.model.encode(chunks)
-        if hasattr(embeddings, "tolist"):
-            embeddings = embeddings.tolist()
+        try:
+            embeddings = self.model.encode(chunks)
+        except Exception as exc:
+            raise EmbeddingModelUnavailable(str(exc)) from exc
         upsert_document_chunks(
             user_id=user_id,
             document_id=document_id,
