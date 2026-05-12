@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Activity, ArrowUpRight, Clock3, Database, FileText, Gauge } from "lucide-react";
 import { WorkspaceHeader } from "@/components/workspace-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cleanPreview, normalizeHistory, uniqueLatestDocuments } from "@/lib/document-display";
+import { cleanPreview, normalizeHistory, sourceLabel, uniqueLatestDocuments } from "@/lib/document-display";
 import { getHealth, listChatHistory, listDocuments } from "@/lib/api";
 
 export default function DashboardPage() {
@@ -158,10 +158,10 @@ export default function DashboardPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     {item.sources.slice(0, 3).map((source) => (
                       <span
-                        key={`${item.id}-${source}`}
+                        key={`${item.id}-${source.type}-${source.link ?? source.pdf_url ?? source.title ?? "source"}`}
                         className="rounded-full border bg-muted px-2.5 py-1 text-xs text-muted-foreground"
                       >
-                        {source}
+                        {sourceLabel(source)}
                       </span>
                     ))}
                   </div>

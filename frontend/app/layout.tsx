@@ -1,17 +1,7 @@
 import type { Metadata } from "next";
-import { Manrope, Space_Grotesk } from "next/font/google";
+import { AuthProvider } from "@/components/auth-provider";
 import { ToastProvider } from "@/components/toast-provider";
 import "./globals.css";
-
-const sans = Manrope({
-  subsets: ["latin"],
-  variable: "--font-sans"
-});
-
-const display = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-display"
-});
 
 export const metadata: Metadata = {
   title: "AI Multi-Agent Research Knowledge Assistant",
@@ -38,8 +28,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${sans.variable} ${display.variable}`}>
-        <ToastProvider>{children}</ToastProvider>
+      <body>
+        <ToastProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );

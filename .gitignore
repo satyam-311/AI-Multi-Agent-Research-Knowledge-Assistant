@@ -208,18 +208,40 @@ __marimo__/
 
 # Project-local runtime and generated data
 app.db
+*.db
+*.sqlite
+*.sqlite3
 backend_runtime/
 chroma_data/
+.chroma/
 uvicorn_*.out
 uvicorn_*.err
+*.log
 
 # Frontend local env and build output
 frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+frontend/.env.test.local
 frontend/.next/
+frontend/.next-build/
+frontend/.next-cache/
 frontend/node_modules/
 frontend/tsconfig.tsbuildinfo
+
+# Additional local environment and secret files
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
+*.pem
+*.key
+*service-account*.json
+*firebase*service*.json
 
 # Keep tracked frontend source visible despite generic Python packaging rules
 !frontend/lib/
 !frontend/lib/**
 backend/firebase-service-account*.json*
+!.env.example
+!frontend/.env.example

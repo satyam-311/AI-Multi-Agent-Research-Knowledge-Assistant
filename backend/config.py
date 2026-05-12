@@ -41,6 +41,7 @@ class Settings:
     firebase_private_key: str
     firebase_service_account_json: str
     firebase_service_account_key_path: str
+    tavily_api_key: str
 
 
 def _get_bool(name: str, default: bool) -> bool:
@@ -105,4 +106,5 @@ def get_settings() -> Settings:
         firebase_service_account_key_path=os.getenv(
             "FIREBASE_SERVICE_ACCOUNT_KEY_PATH", ""
         ).strip(),
+        tavily_api_key=os.getenv("TAVILY_API_KEY", "").strip(),
     )

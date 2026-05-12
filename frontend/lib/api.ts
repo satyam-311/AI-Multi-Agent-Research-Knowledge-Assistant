@@ -33,7 +33,22 @@ export type DocumentUploadResponse = {
 export type AskResponse = {
   user_id: number;
   answer: string;
-  sources: string[];
+  sources: SourceGroups;
+};
+
+export type SourceRecord = {
+  type: "rag" | "arxiv" | "ddg";
+  title: string | null;
+  pdf_url: string | null;
+  summary: string | null;
+  link: string | null;
+  published_at: string | null;
+};
+
+export type SourceGroups = {
+  rag: SourceRecord[];
+  arxiv: SourceRecord[];
+  ddg: SourceRecord[];
 };
 
 export type DocumentRecord = {
@@ -50,7 +65,7 @@ export type ChatHistoryRecord = {
   document_id: number | null;
   question: string;
   answer: string;
-  sources: string[];
+  sources: SourceRecord[];
   created_at: string;
 };
 
@@ -196,7 +211,11 @@ export async function listDocuments(): Promise<DocumentRecord[]> {
   return requestJson<DocumentRecord[]>("/rag/documents");
 }
 
-export async function listChatHistory(): Promise<ChatHistoryRecord[]> {
+export async function listChatHistory(documentId?: number): Promise<ChatHistoryRecord[]> {
+  if (documentId != null) {
+    return requestJson<ChatHistoryRecord[]>(`/chat/history?document_id=${documentId}`);
+  }
+
   return requestJson<ChatHistoryRecord[]>("/rag/get_chat_history");
 }
 
@@ -254,7 +273,7 @@ export async function askQuestion(params: {
   documentId?: number | null;
   topK?: number;
 }): Promise<AskResponse> {
-  return requestJson<AskResponse>("/rag/ask_question", {
+  return requestJson<AskResponse>("/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"

@@ -17,14 +17,21 @@ import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { cleanPreview, dedupeSources, normalizeHistory, uniqueLatestDocuments } from "@/lib/document-display";
-import { askQuestion, listChatHistory, listDocuments, type DocumentRecord } from "@/lib/api";
+import {
+  cleanPreview,
+  dedupeSources,
+  flattenSourceGroups,
+  normalizeHistory,
+  sourceLabel,
+  uniqueLatestDocuments
+} from "@/lib/document-display";
+import { askQuestion, listChatHistory, listDocuments, type DocumentRecord, type SourceRecord } from "@/lib/api";
 
 type ChatMessage = {
   id: string;
   role: "user" | "ai";
   content: string;
-  sources?: string[];
+  sources?: SourceRecord[];
 };
 
 const initialMessages: ChatMessage[] = [
@@ -47,6 +54,31 @@ export function ChatWorkspace() {
   const [success, setSuccess] = useState<string | null>(null);
   const [lastQuestion, setLastQuestion] = useState("");
   const viewportRef = useRef<HTMLDivElement>(null);
+
+  const buildMessagesFromHistory = (
+    historyRows: ReturnType<typeof normalizeHistory>
+  ): ChatMessage[] => {
+    if (historyRows.length === 0) {
+      return initialMessages;
+    }
+
+    return historyRows
+      .slice()
+      .reverse()
+      .flatMap((item) => [
+        {
+          id: `q-${item.id}`,
+          role: "user" as const,
+          content: item.question
+        },
+        {
+          id: `a-${item.id}`,
+          role: "ai" as const,
+          content: item.answer,
+          sources: item.sources
+        }
+      ]);
+  };
 
   useEffect(() => {
     viewportRef.current?.scrollTo({
@@ -71,41 +103,63 @@ export function ChatWorkspace() {
   useEffect(() => {
     let active = true;
 
-    async function loadWorkspace() {
+    async function loadDocuments() {
       try {
-        const [documentRows, historyRows] = await Promise.all([listDocuments(), listChatHistory()]);
+        const documentRows = await listDocuments();
         if (!active) return;
-
         setDocuments(uniqueLatestDocuments(documentRows));
-        if (historyRows.length > 0) {
-          const restoredMessages: ChatMessage[] = normalizeHistory(historyRows)
-            .slice()
-            .reverse()
-            .flatMap((item) => [
-              {
-                id: `q-${item.id}`,
-                role: "user" as const,
-                content: item.question
-              },
-              {
-                id: `a-${item.id}`,
-                role: "ai" as const,
-                content: item.answer,
-                sources: item.sources
-              }
-            ]);
-        setMessages(restoredMessages);
-        }
-        setSuccess("Conversation ready.");
       } catch (loadError) {
         if (!active) return;
-        setSuccess(null);
-        setError(loadError instanceof Error ? loadError.message : "Could not load chat data.");
+        toast({
+          variant: "error",
+          title: "Documents unavailable",
+          description: loadError instanceof Error ? loadError.message : "Could not load documents."
+        });
+      }
+    }
+
+    void loadDocuments();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    setMessages(initialMessages);
+    setError(null);
+    setSuccess(null);
+
+    if (selectedDocumentId === "all") {
+      setHistoryLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    const documentId = selectedDocumentId;
+    setHistoryLoading(true);
+
+    async function loadDocumentHistory() {
+      try {
+        const historyRows = await listChatHistory(documentId);
+        if (!active) return;
+
+        setMessages(buildMessagesFromHistory(normalizeHistory(historyRows)));
+        setSuccess("Document chat loaded.");
+      } catch (loadError) {
+        if (!active) return;
+        setError(
+          loadError instanceof Error ? loadError.message : "Could not load document chat history."
+        );
         toast({
           variant: "error",
           title: "History unavailable",
           description:
-            loadError instanceof Error ? loadError.message : "Could not load chat data."
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load document chat history."
         });
       } finally {
         if (active) {
@@ -114,11 +168,11 @@ export function ChatWorkspace() {
       }
     }
 
-    void loadWorkspace();
+    void loadDocumentHistory();
     return () => {
       active = false;
     };
-  }, []);
+  }, [selectedDocumentId]);
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -143,19 +197,20 @@ export function ChatWorkspace() {
         question,
         documentId: selectedDocumentId === "all" ? null : selectedDocumentId
       });
+      const flattenedSources = flattenSourceGroups(response.sources);
       const aiMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "ai",
         content: response.answer,
-        sources: dedupeSources(response.sources)
+        sources: flattenedSources
       };
       setMessages((prev) => [...prev, aiMessage]);
       setSuccess("Answer generated successfully.");
       toast({
         variant: "success",
         title: "Answer ready",
-        description: response.sources.length
-          ? `Answered with ${response.sources.length} source reference(s).`
+        description: flattenedSources.length
+          ? `Answered with ${flattenedSources.length} source reference(s).`
           : "Answer generated successfully."
       });
     } catch (submitError) {
@@ -292,15 +347,40 @@ export function ChatWorkspace() {
                       <FileStack size={12} />
                       Sources
                     </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-col gap-2">
                       {dedupeSources(msg.sources).map((source, index) => (
-                        <span
-                          key={`${msg.id}-${source}-${index}`}
-                          className="inline-flex items-center gap-1 rounded-full border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-300"
+                        <div
+                          key={`${msg.id}-${source.type}-${source.link ?? source.pdf_url ?? source.title ?? index}`}
+                          className="rounded-2xl border border-zinc-800 bg-zinc-900/90 px-3 py-2 text-xs text-zinc-300"
                         >
-                          <Hash size={11} />
-                          {source}
-                        </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-zinc-800 bg-zinc-950 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-400">
+                              <Hash size={11} />
+                              {source.type}
+                            </span>
+                            {source.link || source.pdf_url ? (
+                              <a
+                                href={source.pdf_url ?? source.link ?? "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-medium text-cyan-300 transition hover:text-cyan-200 hover:underline"
+                              >
+                                {source.type === "arxiv" ? "Open Paper" : "Open Link"}
+                              </a>
+                            ) : null}
+                          </div>
+                          <p className="mt-2 text-sm text-zinc-100">{sourceLabel(source)}</p>
+                          {source.published_at ? (
+                            <p className="mt-1 text-[11px] text-zinc-500">
+                              Published {source.published_at}
+                            </p>
+                          ) : null}
+                          {source.summary ? (
+                            <p className="mt-1 line-clamp-3 text-[11px] leading-5 text-zinc-400">
+                              {source.summary}
+                            </p>
+                          ) : null}
+                        </div>
                       ))}
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-import type { ChatHistoryRecord, DocumentRecord } from "@/lib/api";
+import type { ChatHistoryRecord, DocumentRecord, SourceGroups, SourceRecord } from "@/lib/api";
 
 const PREVIEW_NOISE_PATTERNS = [
   /\b20\d{2}\b/gi,
@@ -68,8 +68,28 @@ export function uniqueLatestDocuments(documents: DocumentRecord[]): DocumentReco
   return Array.from(latestByFilename.values()).sort((left, right) => right.id - left.id);
 }
 
-export function dedupeSources(sources: string[]): string[] {
-  return Array.from(new Set(sources));
+export function dedupeSources(sources: SourceRecord[]): SourceRecord[] {
+  const seen = new Set<string>();
+  const deduped: SourceRecord[] = [];
+
+  for (const source of sources) {
+    const key = [
+      source.type,
+      source.title ?? "",
+      source.link ?? "",
+      source.pdf_url ?? ""
+    ]
+      .join("|")
+      .toLowerCase();
+
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(source);
+  }
+
+  return deduped;
 }
 
 export function normalizeHistory(history: ChatHistoryRecord[]): ChatHistoryRecord[] {
@@ -77,4 +97,21 @@ export function normalizeHistory(history: ChatHistoryRecord[]): ChatHistoryRecor
     ...item,
     sources: dedupeSources(item.sources)
   }));
+}
+
+export function sourceLabel(source: SourceRecord): string {
+  if (source.title?.trim()) {
+    return source.title.trim();
+  }
+  if (source.pdf_url?.trim()) {
+    return source.pdf_url.trim();
+  }
+  if (source.link?.trim()) {
+    return source.link.trim();
+  }
+  return "Source";
+}
+
+export function flattenSourceGroups(groups: SourceGroups): SourceRecord[] {
+  return dedupeSources([...(groups.rag ?? []), ...(groups.arxiv ?? []), ...(groups.ddg ?? [])]);
 }

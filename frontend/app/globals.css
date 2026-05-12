@@ -4,6 +4,8 @@
 
 :root {
   color-scheme: dark;
+  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Trebuchet MS", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --background: 240 6% 10%;
   --foreground: 210 20% 96%;
   --card: 240 6% 12%;
@@ -23,6 +25,8 @@
 
 .dark {
   color-scheme: dark;
+  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Trebuchet MS", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --background: 240 6% 10%;
   --foreground: 210 20% 96%;
   --card: 240 6% 12%;

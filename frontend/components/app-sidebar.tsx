@@ -15,8 +15,8 @@ import {
   X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { getAuthSession, logout } from "@/lib/api";
 
 const items = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -28,15 +28,15 @@ const items = [
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [userName, setUserName] = useState("Workspace User");
 
   useEffect(() => {
-    const session = getAuthSession();
-    if (session?.user.name) {
-      setUserName(session.user.name);
+    if (user?.name) {
+      setUserName(user.name);
     }
-  }, []);
+  }, [user?.name]);
 
   const nav = (
     <aside className="glass shadow-panel h-full rounded-[2rem] border-zinc-800 bg-zinc-950/80 p-4">

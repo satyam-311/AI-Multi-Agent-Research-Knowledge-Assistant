@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
@@ -22,12 +23,44 @@ class AskRequest(BaseModel):
     document_id: int | None = Field(default=None, ge=1, examples=[13])
 
 
+class SourceItem(BaseModel):
+    type: Literal["rag", "arxiv", "ddg"] = Field(examples=["arxiv"])
+    title: str | None = Field(default=None, examples=["Attention Is All You Need"])
+    pdf_url: str | None = Field(default=None, examples=["https://arxiv.org/pdf/1706.03762.pdf"])
+    summary: str | None = Field(default=None, examples=["Transformer architecture summary."])
+    link: str | None = Field(default=None, examples=["https://arxiv.org/pdf/1706.03762.pdf"])
+    published_at: str | None = Field(default=None, examples=["2017-06-12"])
+
+
+class SourceGroups(BaseModel):
+    rag: list[SourceItem] = Field(default_factory=list)
+    arxiv: list[SourceItem] = Field(default_factory=list)
+    ddg: list[SourceItem] = Field(default_factory=list)
+
+
 class AskResponse(BaseModel):
     user_id: int = Field(examples=[1])
     answer: str = Field(
         examples=["Logistic regression is commonly used for binary classification problems."]
     )
-    sources: list[str] = Field(examples=[["research-paper.pdf"]])
+    sources: SourceGroups = Field(
+        examples=[
+            {
+                "rag": [],
+                "arxiv": [
+                    {
+                        "type": "arxiv",
+                        "title": "Attention Is All You Need",
+                        "pdf_url": "https://arxiv.org/pdf/1706.03762.pdf",
+                        "summary": "Transformer architecture summary.",
+                        "link": "https://arxiv.org/pdf/1706.03762.pdf",
+                        "published_at": "2017-06-12",
+                    }
+                ],
+                "ddg": [],
+            }
+        ]
+    )
 
 
 class DocumentOut(BaseModel):
@@ -47,7 +80,7 @@ class ChatHistoryOut(BaseModel):
     document_id: int | None
     question: str
     answer: str
-    sources: list[str]
+    sources: list[SourceItem]
     created_at: datetime
 
 

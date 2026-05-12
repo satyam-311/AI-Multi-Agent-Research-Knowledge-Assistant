@@ -16,15 +16,26 @@ class RetrievalAgent:
         query_embedding = query_embeddings[0]
         results = self.collection.query(
             query_embeddings=[query_embedding],
-            n_results=max(1, min(top_k, 3)),
+            n_results=max(1, min(top_k, 20)),
             where=build_metadata_filter(user_id, document_id),
+            include=["documents", "metadatas", "distances"],
         )
 
         documents = results.get("documents", [[]])[0]
         metadatas = results.get("metadatas", [[]])[0]
+        distances = results.get("distances", [[]])[0]
 
         response = []
         for idx, text in enumerate(documents):
             metadata = metadatas[idx] if idx < len(metadatas) else {}
-            response.append({"text": text, **metadata})
+            distance = float(distances[idx]) if idx < len(distances) else 1.0
+            similarity = max(0.0, min(1.0, 1.0 - distance))
+            response.append(
+                {
+                    "text": text,
+                    "distance": distance,
+                    "similarity": similarity,
+                    **metadata,
+                }
+            )
         return response

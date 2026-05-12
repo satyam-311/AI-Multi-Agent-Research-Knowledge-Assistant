@@ -1,19 +1,41 @@
+from __future__ import annotations
+
+import asyncio
 import json
+import logging
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from backend import models
+from backend.agents.arxiv_agent import ArxivAPIError, ArxivAgent
+from backend.agents.ddg_agent import DDGAgent
 from backend.agents.document_processing_agent import DocumentExtractionError
 from backend.agents.embedding_agent import EmbeddingModelUnavailable
+from backend.agents.rag_agent import RAGAgent, RAGResult
+from backend.services.source_utils import normalize_source_items
+
+
+logger = logging.getLogger(__name__)
+
+UNCERTAIN_ANSWER_MARKERS = (
+    "i could not find",
+    "i don't know",
+    "i do not know",
+    "not enough context",
+    "context is incomplete",
+    "missing from the provided context",
+)
 
 
 class MultiAgentOrchestrator:
     def __init__(self) -> None:
         self._document_agent = None
         self._embedding_agent = None
-        self._retrieval_agent = None
+        self._rag_agent = None
         self._answer_agent = None
+        self._arxiv_agent = None
+        self._ddg_agent = None
 
     @property
     def document_agent(self):
@@ -32,12 +54,10 @@ class MultiAgentOrchestrator:
         return self._embedding_agent
 
     @property
-    def retrieval_agent(self):
-        if self._retrieval_agent is None:
-            from backend.agents.retrieval_agent import RetrievalAgent
-
-            self._retrieval_agent = RetrievalAgent()
-        return self._retrieval_agent
+    def rag_agent(self):
+        if self._rag_agent is None:
+            self._rag_agent = RAGAgent()
+        return self._rag_agent
 
     @property
     def answer_agent(self):
@@ -46,6 +66,18 @@ class MultiAgentOrchestrator:
 
             self._answer_agent = AnswerGenerationAgent()
         return self._answer_agent
+
+    @property
+    def arxiv_agent(self):
+        if self._arxiv_agent is None:
+            self._arxiv_agent = ArxivAgent()
+        return self._arxiv_agent
+
+    @property
+    def ddg_agent(self):
+        if self._ddg_agent is None:
+            self._ddg_agent = DDGAgent()
+        return self._ddg_agent
 
     def get_or_create_user(self, db: Session, user_id: int) -> models.User:
         user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -94,8 +126,7 @@ class MultiAgentOrchestrator:
         db.refresh(document)
 
         try:
-            agent = self.embedding_agent
-            agent.index_document_chunks(
+            self.embedding_agent.index_document_chunks(
                 user_id=user_id,
                 document_id=document.id,
                 filename=document.filename,
@@ -111,75 +142,151 @@ class MultiAgentOrchestrator:
 
     def ask_question(
         self, db: Session, user_id: int, question: str, top_k: int, document_id: int | None
-    ) -> tuple[str, list[str]]:
+    ) -> tuple[str, dict[str, list[dict]]]:
         self.get_or_create_user(db, user_id)
-        selected_document_id = document_id
-        selected_document = None
+        print("Query:", question)
+        print("Is research query:", is_research_query(question))
 
-        if document_id is not None:
-            selected_document = (
-                db.query(models.Document)
-                .filter(models.Document.id == document_id, models.Document.user_id == user_id)
-                .first()
-            )
-            if selected_document is None:
-                selected_document_id = None
+        selected_document_id = self._resolve_document_id(db, user_id, document_id)
+        if is_research_query(question):
+            print("Calling ArXiv agent...")
+            grouped_sources = {"rag": [], "arxiv": [], "ddg": []}
+            arxiv_papers = asyncio.run(self._safe_arxiv_search(question))
+            print("Number of papers:", len(arxiv_papers))
 
-        try:
-            contexts = self.retrieval_agent.retrieve_relevant_chunks(
-                query=question,
+            if arxiv_papers:
+                grouped_sources["arxiv"] = normalize_source_items(
+                    self.arxiv_agent.build_payload(arxiv_papers[:5])["results"]
+                )
+                flat_sources = normalize_source_items(grouped_sources["arxiv"])
+                answer = self.arxiv_agent.build_answer(arxiv_papers[:5])
+            else:
+                ddg_results = asyncio.run(self._safe_ddg_search(question))
+                grouped_sources["ddg"] = normalize_source_items(
+                    self.ddg_agent.build_payload(ddg_results[:5])["results"] if ddg_results else []
+                )
+                flat_sources = normalize_source_items(grouped_sources["ddg"])
+                answer = self._build_ddg_fallback_answer(ddg_results[:5] if ddg_results else [])
+
+            chat = models.ChatHistory(
                 user_id=user_id,
-                top_k=top_k,
-                document_id=selected_document_id,
+                document_id=None,
+                question=question,
+                answer=answer,
+                sources_json=json.dumps(flat_sources),
             )
-        except Exception:
-            contexts = []
+            db.add(chat)
+            db.commit()
+            return answer, grouped_sources
 
-        if not contexts:
-            contexts = self._build_database_fallback_contexts(
-                db=db,
-                user_id=user_id,
-                document_id=selected_document_id,
-                top_k=top_k,
+        rag_result = self.rag_agent.collect_contexts(
+            db=db,
+            user_id=user_id,
+            question=question,
+            top_k=top_k,
+            document_id=selected_document_id,
+        )
+
+        rag_answer = ""
+        use_fallback = self._should_use_fallback(rag_result)
+        if not use_fallback and rag_result.contexts:
+            rag_answer = self.answer_agent.generate_answer(question=question, contexts=rag_result.contexts)
+            if self._is_uncertain_answer(rag_answer):
+                logger.info("RAG answer uncertain, forcing fallback")
+                use_fallback = True
+
+        merged_contexts = list(rag_result.contexts)
+        grouped_sources: dict[str, list[dict]] = {
+            "rag": normalize_source_items(rag_result.sources),
+            "arxiv": [],
+            "ddg": [],
+        }
+
+        if use_fallback:
+            logger.info("Fallback to DDG for question=%s", question)
+            ddg_contexts, ddg_sources = asyncio.run(self._run_ddg_fallback(question))
+            merged_contexts.extend(ddg_contexts)
+            grouped_sources["ddg"] = ddg_sources
+
+        flat_sources = normalize_source_items(
+            [*grouped_sources["rag"], *grouped_sources["arxiv"], *grouped_sources["ddg"]]
+        )
+
+        if merged_contexts:
+            answer = (
+                self.answer_agent.generate_answer(question=question, contexts=merged_contexts)
+                if use_fallback or not rag_answer
+                else rag_answer
+            )
+        else:
+            answer = (
+                "I could not find enough evidence in the uploaded PDFs, ArXiv, or web search "
+                "to answer this question reliably."
             )
 
-        answer = self.answer_agent.generate_answer(question=question, contexts=contexts)
-        sources = [ctx.get("source", "unknown") for ctx in contexts]
+        logger.info(
+            "Question answered question=%s rag_contexts=%s arxiv_sources=%s ddg_sources=%s fallback=%s",
+            question,
+            len(rag_result.contexts),
+            len(grouped_sources["arxiv"]),
+            len(grouped_sources["ddg"]),
+            use_fallback,
+        )
 
         chat = models.ChatHistory(
             user_id=user_id,
             document_id=selected_document_id,
             question=question,
             answer=answer,
-            sources_json=json.dumps(sources),
+            sources_json=json.dumps(flat_sources),
         )
         db.add(chat)
         db.commit()
 
-        return answer, sources
+        return answer, grouped_sources
 
-    def _build_database_fallback_contexts(
-        self, db: Session, user_id: int, document_id: int | None, top_k: int
-    ) -> list[dict]:
-        query = db.query(models.Document).filter(models.Document.user_id == user_id)
-        if document_id is not None:
-            query = query.filter(models.Document.id == document_id)
-        documents = query.order_by(models.Document.created_at.desc()).limit(max(1, top_k)).all()
+    async def _run_ddg_fallback(self, question: str) -> tuple[list[dict], list[dict]]:
+        ddg_results = await self._safe_ddg_search(question)
+        if not ddg_results:
+            return [], []
 
-        contexts: list[dict] = []
-        for document in documents:
-            text = (document.content_text or document.content_preview or "").strip()
-            if not text:
-                continue
-            contexts.append(
-                {
-                    "text": text[:4000],
-                    "source": document.filename,
-                    "document_id": document.id,
-                    "user_id": document.user_id,
-                }
+        contexts = self.ddg_agent.build_contexts(ddg_results)
+        sources = normalize_source_items(self.ddg_agent.build_payload(ddg_results)["results"])
+        return contexts, sources
+
+    async def _safe_arxiv_search(self, question: str):
+        try:
+            return await self.arxiv_agent.search_papers_async(question, max_results=5)
+        except ArxivAPIError as exc:
+            logger.warning("ArXiv unavailable question=%s error=%s", question, exc)
+            return []
+        except Exception:
+            logger.exception("Unexpected ArXiv failure question=%s", question)
+            return []
+
+    async def _safe_ddg_search(self, question: str):
+        try:
+            return await self.ddg_agent.search_async(question, max_results=5)
+        except Exception:
+            logger.exception("DDG unavailable question=%s", question)
+            return []
+
+    def _should_use_fallback(self, rag_result: RAGResult) -> bool:
+        if rag_result.is_empty:
+            logger.info("Fallback reason: RAG empty")
+            return True
+        if rag_result.is_low_confidence:
+            logger.info(
+                "Fallback reason: low similarity max=%.3f avg=%.3f",
+                rag_result.max_similarity,
+                rag_result.average_similarity,
             )
-        return contexts
+            return True
+        return False
+
+    def _is_uncertain_answer(self, answer: str) -> bool:
+        normalized = " ".join(answer.lower().split())
+        return any(marker in normalized for marker in UNCERTAIN_ANSWER_MARKERS)
 
     def delete_document(self, db: Session, user_id: int, document_id: int) -> None:
         document = (
@@ -205,3 +312,46 @@ class MultiAgentOrchestrator:
             self.embedding_agent.delete_document_chunks(user_id=user_id, document_id=document_id)
         except Exception:
             pass
+
+    def _resolve_document_id(
+        self, db: Session, user_id: int, document_id: int | None
+    ) -> int | None:
+        if document_id is None:
+            return None
+
+        selected_document = (
+            db.query(models.Document)
+            .filter(models.Document.id == document_id, models.Document.user_id == user_id)
+            .first()
+        )
+        if selected_document is None:
+            return None
+        return document_id
+
+    def _build_ddg_fallback_answer(self, results: list) -> str:
+        if not results:
+            return (
+                "I could not find ArXiv papers or useful web results for this research query."
+            )
+
+        lines: list[str] = []
+        for result in results[:5]:
+            lines.append(f"Title: {result.title}")
+            lines.append(f"Summary: {result.snippet}")
+            lines.append(f"Link: {result.link}")
+            lines.append("")
+        return "\n".join(lines).strip()
+
+
+def is_research_query(query: str) -> bool:
+    keywords = [
+        "research paper",
+        "research on",
+        "papers on",
+        "arxiv",
+        "latest research",
+        "survey paper",
+        "study on",
+    ]
+    query_lower = query.lower()
+    return any(keyword in query_lower for keyword in keywords)

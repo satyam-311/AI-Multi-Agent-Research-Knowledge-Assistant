@@ -3,32 +3,26 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
-import { getAuthSession } from "@/lib/api";
+import { useAuth } from "@/components/auth-provider";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [ready, setReady] = useState(false);
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    let active = true;
-
-    async function verify() {
-      const session = getAuthSession();
-      if (!session) {
-        router.replace(`/login?next=${encodeURIComponent(pathname ?? "/dashboard")}`);
-        return;
-      }
-      if (active) {
-        setReady(true);
-      }
+    if (loading) {
+      return;
     }
 
-    void verify();
-    return () => {
-      active = false;
-    };
-  }, [pathname, router]);
+    if (!user) {
+      router.replace(`/login?next=${encodeURIComponent(pathname ?? "/dashboard")}`);
+      return;
+    }
+
+    setReady(true);
+  }, [loading, pathname, router, user]);
 
   if (!ready) {
     return (

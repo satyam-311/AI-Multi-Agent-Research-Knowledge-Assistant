@@ -1,131 +1,178 @@
 # AI Multi-Agent Research Knowledge Assistant
 
-Initial full-stack project scaffold for a multi-agent RAG application where users upload PDFs and ask grounded questions.
+Full-stack research assistant for uploading documents, retrieving grounded context, and generating answers through a multi-agent RAG pipeline. The project combines a Next.js frontend, a FastAPI backend, SQLite/SQLAlchemy for app data, ChromaDB for vector retrieval, and Firebase-backed authentication.
 
-## 1. Project Architecture
+## What It Does
 
-### High-level flow
-1. User uploads a PDF from the Next.js dashboard.
-2. FastAPI receives the file.
-3. `DocumentProcessingAgent` extracts PDF text and chunks it.
-4. `EmbeddingAgent` embeds chunks using Sentence Transformers and stores vectors in ChromaDB.
-5. User asks a question in chat.
-6. `RetrievalAgent` fetches relevant chunks from ChromaDB.
-7. `AnswerGenerationAgent` calls `llama3` via Ollama with retrieved context.
-8. API returns answer + source metadata to frontend.
+- Upload PDF documents and chunk them for retrieval.
+- Ask questions against a specific document and get grounded answers with source references.
+- Store chat history per user and document.
+- Support email/password auth and Google sign-in.
+- Extend retrieval with dedicated research agents such as Arxiv, DuckDuckGo, and RAG orchestration components.
 
-### System components
-- Frontend: Next.js + Tailwind CSS + shadcn/ui-style components + lucide icons.
-- Backend API: FastAPI.
-- Relational DB: PostgreSQL (document metadata).
-- Vector DB: ChromaDB (semantic chunk search).
-- LLM runtime: Ollama (`llama3`).
-- Embeddings: `sentence-transformers/all-MiniLM-L6-v2`.
+## Stack
 
-### Agent responsibilities
-- `DocumentProcessingAgent`: PDF extraction + text chunking.
-- `EmbeddingAgent`: embedding generation + Chroma indexing.
-- `RetrievalAgent`: semantic retrieval for user question.
-- `AnswerGenerationAgent`: grounded answer generation via Ollama llama3.
+- Frontend: Next.js 16, React 19, TypeScript, Tailwind CSS
+- Backend: FastAPI, SQLAlchemy, Pydantic
+- Vector store: ChromaDB
+- Embeddings: `sentence-transformers/all-MiniLM-L6-v2`
+- LLM providers: Groq or Ollama
+- Auth: Firebase Admin on the backend, Firebase Web SDK on the frontend
+- OCR fallback: PyMuPDF, Pillow, pytesseract
 
-## 2. Folder Structure
+## Current Architecture
+
+### Frontend
+
+- Login flow with Firebase client integration
+- Protected workspace/dashboard UI
+- Document upload and chat workspace
+- API client layer for auth, document, and chat actions
+
+### Backend
+
+- `backend/routes/auth.py`: register, login, Google login, current user, logout
+- `backend/routes/chat.py`: ask questions and fetch chat history
+- `backend/routes/rag.py`: upload documents, list documents, ask questions, fetch history, delete documents
+- `backend/services/rag_service.py`: main document ingestion and retrieval workflow
+- `backend/agents/`: retrieval, answer generation, orchestrator, Arxiv, DuckDuckGo, and RAG-specific agents
+
+### Data Flow
+
+1. User authenticates from the frontend.
+2. A PDF is uploaded to the FastAPI backend.
+3. The backend extracts text, chunks it, embeds the chunks, and stores vectors in ChromaDB.
+4. The user asks a question tied to a document.
+5. Retrieval agents collect relevant context.
+6. The answer generation layer calls the configured LLM provider.
+7. The API returns the answer plus normalized source metadata.
+
+## Project Structure
 
 ```text
 AI-Multi-Agent-Research-Knowledge-Assistant/
-├── .env.example
-├── requirements.txt
-├── README.md
-├── backend/
-│   ├── .env.example
-│   ├── __init__.py
-│   ├── config.py
-│   ├── main.py
-│   ├── database.py
-│   ├── models.py
-│   ├── schemas.py
-│   ├── routes/
-│   │   ├── __init__.py
-│   │   ├── health.py
-│   │   ├── documents.py
-│   │   └── chat.py
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── pdf_service.py
-│   │   ├── chunk_service.py
-│   │   ├── embedding_service.py
-│   │   ├── chroma_service.py
-│   │   └── rag_service.py
-│   └── agents/
-│       ├── __init__.py
-│       ├── document_processing_agent.py
-│       ├── embedding_agent.py
-│       ├── retrieval_agent.py
-│       ├── answer_generation_agent.py
-│       └── orchestrator.py
-└── frontend/
-    ├── package.json
-    ├── tsconfig.json
-    ├── next-env.d.ts
-    ├── next.config.mjs
-    ├── postcss.config.mjs
-    ├── tailwind.config.ts
-    ├── app/
-    │   ├── layout.tsx
-    │   ├── page.tsx
-    │   └── globals.css
-    ├── components/
-    │   ├── dashboard-shell.tsx
-    │   ├── sidebar.tsx
-    │   ├── upload-panel.tsx
-    │   ├── chat-panel.tsx
-    │   └── ui/
-    │       ├── badge.tsx
-    │       ├── button.tsx
-    │       ├── card.tsx
-    │       └── input.tsx
-    ├── lib/
-    │   └── utils.ts
-    ├── ui/
-    │   └── index.ts
-    └── pages/
-        └── README.md
+|-- backend/
+|   |-- agents/
+|   |-- routes/
+|   |-- services/
+|   |-- config.py
+|   |-- database.py
+|   |-- main.py
+|   |-- models.py
+|   `-- schemas.py
+|-- frontend/
+|   |-- app/
+|   |-- components/
+|   |-- lib/
+|   |-- package.json
+|   `-- tsconfig.json
+|-- .env.example
+|-- .gitignore
+|-- README.md
+`-- requirements.txt
 ```
 
-## 3. Setup (Scaffold Stage)
+## Environment Variables
+
+Copy the example files and fill in real values locally:
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item frontend\.env.example frontend\.env.local
+```
+
+Important backend variables:
+
+- `DATABASE_URL`
+- `CHROMA_PERSIST_DIRECTORY`
+- `LLM_PROVIDER`
+- `GROQ_API_KEY`
+- `OLLAMA_BASE_URL`
+- `OLLAMA_MODEL`
+- `AUTH_SECRET`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY`
+- `FIREBASE_SERVICE_ACCOUNT_JSON`
+- `FIREBASE_SERVICE_ACCOUNT_KEY_PATH`
+- `TAVILY_API_KEY`
+
+Important frontend variables:
+
+- `NEXT_PUBLIC_API_BASE_URL`
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+
+Do not commit `.env`, `frontend/.env.local`, service account JSON files, local databases, or generated build folders.
+
+## Local Setup
 
 ### Backend
-```bash
+
+```powershell
 python -m venv venv
-venv\\Scripts\\activate
+venv\Scripts\activate
 pip install -r requirements.txt
-copy .env.example .env
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
-OCR fallback for scanned PDFs requires the Tesseract OCR engine installed on the host. If the `tesseract` binary is not on PATH, set `TESSERACT_CMD` in `.env` to the full path (for example `C:\\Program Files\\Tesseract-OCR\\tesseract.exe`).
+The backend loads environment values from the repo root `.env`.
 
 ### Frontend
-```bash
+
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-## 4. API Skeleton Endpoints
+Default local URLs:
 
-- `GET /api/health`
-- `POST /api/documents/upload`
-- `POST /api/chat/ask`
+- Frontend: `http://localhost:3000`
+- Backend API: `http://127.0.0.1:8001`
+- FastAPI docs: `http://127.0.0.1:8001/docs`
 
-## 5. Current Status
+## API Overview
 
-- Completed:
-  - Architecture and file structure
-  - Backend skeleton with multi-agent modules
-  - Frontend skeleton with modern dashboard UI direction
-  - Base environment and dependency manifests
-- Deferred (next phase):
-  - Full agent orchestration and error handling
-  - Async processing jobs
-  - Auth, document management, chat history
-  - Production hardening and tests
+### Auth
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/google`
+- `GET /auth/me`
+- `POST /auth/logout`
+
+### Chat
+
+- `POST /chat`
+- `GET /chat/history`
+
+### RAG
+
+- `POST /rag/upload_document`
+- `POST /rag/ask_question`
+- `GET /rag/documents`
+- `GET /rag/get_chat_history`
+- `DELETE /rag/documents/{document_id}`
+
+The same router is also exposed under `/api`, so both `/rag/...` and `/api/rag/...` are available.
+
+## Notes
+
+- OCR fallback for scanned PDFs requires Tesseract installed on the host.
+- SQLite is the current default local database target.
+- Chroma persistence is stored locally unless you point it elsewhere with `CHROMA_PERSIST_DIRECTORY`.
+- If you use Groq, set `GROQ_API_KEY`. If you use Ollama, ensure the local Ollama server is running.
+
+## Git Hygiene
+
+Before pushing:
+
+- Keep `.env` and `frontend/.env.local` local only.
+- Keep Firebase service account files out of the repo.
+- Do not commit `frontend/.next/`, `frontend/.next-build/`, `frontend/.next-cache/`, local databases, or runtime output.
+- Review `git status` before `git add`.

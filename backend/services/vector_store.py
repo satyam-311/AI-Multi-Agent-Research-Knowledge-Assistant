@@ -29,7 +29,13 @@ class InMemoryCollection:
                 "metadata": metadata,
             }
 
-    def query(self, query_embeddings: list[list[float]], n_results: int, where: dict) -> dict:
+    def query(
+        self,
+        query_embeddings: list[list[float]],
+        n_results: int,
+        where: dict,
+        include: list[str] | None = None,
+    ) -> dict:
         query_embedding = query_embeddings[0]
         matches = [
             item for item in self._items.values() if _matches_where(item["metadata"], where)

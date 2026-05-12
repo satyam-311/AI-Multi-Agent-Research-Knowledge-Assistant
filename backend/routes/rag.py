@@ -9,11 +9,11 @@ from backend import models, schemas
 from backend.database import get_db
 from backend.services.auth_service import AuthService, get_auth_cookie, get_bearer_token
 from backend.services.rag_service import RAGService
+from backend.services.source_utils import normalize_source_items
 
 router = APIRouter()
 rag_service = RAGService()
 auth_service = AuthService()
-
 
 def get_optional_authenticated_user(
     authorization: str | None = Depends(get_bearer_token),
@@ -85,6 +85,7 @@ def list_documents(
 @router.get("/get_chat_history", response_model=list[schemas.ChatHistoryOut])
 def get_chat_history(
     user_id: int | None = Query(default=None, ge=1),
+    document_id: int | None = Query(default=None, ge=1),
     limit: int = Query(default=50, ge=1, le=500),
     current_user: models.User | None = Depends(get_optional_authenticated_user),
     db: Session = Depends(get_db),
@@ -92,6 +93,8 @@ def get_chat_history(
     query = db.query(models.ChatHistory).order_by(models.ChatHistory.created_at.desc())
     active_user_id = resolve_user_id(current_user, user_id)
     query = query.filter(models.ChatHistory.user_id == active_user_id)
+    if document_id is not None:
+        query = query.filter(models.ChatHistory.document_id == document_id)
 
     rows = query.limit(limit).all()
     response: list[schemas.ChatHistoryOut] = []
@@ -107,7 +110,7 @@ def get_chat_history(
                 document_id=row.document_id,
                 question=row.question,
                 answer=row.answer,
-                sources=sources if isinstance(sources, list) else [],
+                sources=normalize_source_items(sources),
                 created_at=row.created_at,
             )
         )
